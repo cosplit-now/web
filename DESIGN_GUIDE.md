@@ -1,4 +1,4 @@
-# 🎨 SplitWise 設計指南 - 奶茶色系
+# 🎨 CoSplit 設計指南 - 奶茶色系
 
 ## 設計理念
 
@@ -75,7 +75,7 @@
       <Receipt class="text-primary" />
     </div>
     <div>
-      <h1 class="text-2xl font-bold tracking-tight">SplitWise</h1>
+      <h1 class="text-2xl font-bold tracking-tight">CoSplit</h1>
       <p class="text-xs text-muted-foreground">Smart Receipt Splitter</p>
     </div>
   </div>

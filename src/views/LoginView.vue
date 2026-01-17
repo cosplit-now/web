@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { FormInput } from '@/components/ui/form-input'
 import { MEMBER_COLORS } from '@/types/member'
 import { LogIn } from 'lucide-vue-next'
+import { signIn, signUp } from '@/lib/auth-client'
+import { useFormValidation } from '@/composables/useFormValidation'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
 const isLogin = ref(true)
+const isLoading = ref(false)
 
-const name = ref('')
-const email = ref('')
-const password = ref('')
+// Form validation
+const validation = useFormValidation()
+const toast = useToast()
 
 // 定義色系變數以供 Template 使用
 const colors = {
@@ -21,14 +26,102 @@ const colors = {
   bgAccent: MEMBER_COLORS[7], // #CDB8A3 香vanilla奶茶 (圖示背景)
 }
 
+// Register form fields
+onMounted(() => {
+  validation.registerField('name', [
+    { required: true, message: 'Full name is required' },
+    { minLength: 2, message: 'Name must be at least 2 characters' }
+  ])
+
+  validation.registerField('email', [
+    { required: true, message: 'Email is required' },
+    { email: true, message: 'Please enter a valid email address' }
+  ])
+
+  validation.registerField('password', [
+    { required: true, message: 'Password is required' },
+    { minLength: 6, message: 'Password must be at least 6 characters' }
+  ])
+})
+
 const toggleMode = () => {
   isLogin.value = !isLogin.value
+  validation.reset()
 }
 
-const handleSubmit = () => {
-  // 這裡可以加入實際的登入/註冊邏輯
-  console.log('Submit:', isLogin.value ? 'Login' : 'Register', { email: email.value })
-  router.push('/')
+// Watch mode changes to reset validation
+watch(isLogin, () => {
+  validation.reset()
+})
+
+const handleSubmit = async () => {
+  // Validate only the fields needed for current mode
+  let isValid = true
+
+  // Always validate email and password
+  isValid = validation.validateField('email') && isValid
+  isValid = validation.validateField('password') && isValid
+
+  // Only validate name in sign-up mode
+  if (!isLogin.value) {
+    isValid = validation.validateField('name') && isValid
+  }
+
+  // Mark fields as touched to show errors
+  validation.touchField('email')
+  validation.touchField('password')
+  if (!isLogin.value) {
+    validation.touchField('name')
+  }
+
+  // If validation fails, errors are already shown under each field
+  // No need to show a toast for frontend validation errors
+  if (!isValid) {
+    return
+  }
+
+  isLoading.value = true
+
+  try {
+    let result;
+    if (isLogin.value) {
+      result = await signIn.email({
+        email: validation.getFieldValue('email'),
+        password: validation.getFieldValue('password'),
+      });
+    } else {
+      result = await signUp.email({
+        email: validation.getFieldValue('email'),
+        password: validation.getFieldValue('password'),
+        name: validation.getFieldValue('name'),
+      });
+    }
+
+    if (result.error) {
+      toast.error(result.error.message || 'Authentication failed', {
+        description: 'Please check your credentials and try again'
+      })
+    } else {
+      // Get user name from result
+      const userName = result.data?.user?.name || validation.getFieldValue('name') || validation.getFieldValue('email').split('@')[0]
+
+      if (isLogin.value) {
+        toast.success(`Welcome back, ${userName}!`)
+      } else {
+        toast.success('Account created successfully', {
+          description: `Welcome to CoSplit, ${userName}!`
+        })
+      }
+
+      router.push('/dashboard')
+    }
+  } catch (e: any) {
+    toast.error('An unexpected error occurred', {
+      description: e.message || 'Please try again later'
+    })
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -59,58 +152,68 @@ const handleSubmit = () => {
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <!-- 註冊時顯示姓名欄位 -->
-        <div v-if="!isLogin" class="space-y-2">
-          <label class="text-sm font-medium leading-none" for="name">Full Name</label>
-          <input
-            id="name"
-            v-model="name"
-            type="text"
-            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            :style="{ '--tw-ring-color': colors.primary }"
-            placeholder="John Doe"
-          />
-        </div>
-        
-        <div class="space-y-2">
-          <label class="text-sm font-medium leading-none" for="email">Email</label>
-          <input
-            id="email"
-            v-model="email"
-            type="email"
-            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            :style="{ '--tw-ring-color': colors.primary }"
-            placeholder="m@example.com"
-          />
-        </div>
-        
+        <!-- Name field (only for sign up) -->
+        <FormInput
+          v-if="!isLogin"
+          :model-value="validation.getFieldValue('name')"
+          label="Full Name"
+          type="text"
+          placeholder="John Doe"
+          :error="validation.getFieldError('name')"
+          :required="true"
+          :disabled="isLoading"
+          @update:model-value="validation.setFieldValue('name', $event)"
+          @blur="validation.touchField('name')"
+        />
+
+        <!-- Email field -->
+        <FormInput
+          :model-value="validation.getFieldValue('email')"
+          label="Email"
+          type="email"
+          placeholder="m@example.com"
+          :error="validation.getFieldError('email')"
+          :required="true"
+          :disabled="isLoading"
+          @update:model-value="validation.setFieldValue('email', $event)"
+          @blur="validation.touchField('email')"
+        />
+
+        <!-- Password field -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-medium leading-none" for="password">Password</label>
-            <a 
-              v-if="isLogin" 
-              href="#" 
+            <label class="text-sm font-medium leading-none">
+              Password
+              <span class="text-destructive ml-0.5">*</span>
+            </label>
+            <a
+              v-if="isLogin"
+              href="#"
               class="text-sm font-medium hover:underline"
               :style="{ color: colors.primary }"
             >
               Forgot password?
             </a>
           </div>
-          <input
-            id="password"
-            v-model="password"
+          <FormInput
+            :model-value="validation.getFieldValue('password')"
             type="password"
-            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-            :style="{ '--tw-ring-color': colors.primary }"
+            placeholder="Enter your password"
+            :error="validation.getFieldError('password')"
+            :required="true"
+            :disabled="isLoading"
+            @update:model-value="validation.setFieldValue('password', $event)"
+            @blur="validation.touchField('password')"
           />
         </div>
 
-        <Button 
+        <Button
           class="w-full text-white hover:opacity-90 transition-opacity font-semibold"
           :style="{ backgroundColor: colors.primary }"
+          :disabled="isLoading"
           @click="handleSubmit"
         >
-          {{ isLogin ? 'Sign In' : 'Sign Up' }}
+          {{ isLoading ? 'Loading...' : (isLogin ? 'Sign In' : 'Sign Up') }}
         </Button>
       </CardContent>
       <CardFooter>

@@ -7,8 +7,8 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Receipt, ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign } from 'lucide-vue-next'
-import { MEMBER_COLORS } from '@/types/member'
 import { type Item, type SplitMode, type ItemAssignment, calculateMemberShare } from '@/types/item'
+import { MEMBER_COLORS } from '@/types/member'
 
 const router = useRouter()
 
@@ -214,10 +214,16 @@ const updateAssignmentValue = (memberId: string, value: number) => {
   const assignment = selectedItem.value.assignments.find(a => a.memberId === memberId)
   if (!assignment) return
 
+  // Validate input based on split mode
   if (selectedItem.value.splitMode === 'ratio') {
-    assignment.ratio = value
+    // Ratio should be between 0 and 100
+    const validValue = Math.max(0, Math.min(100, value))
+    assignment.ratio = validValue
   } else if (selectedItem.value.splitMode === 'quantity') {
-    assignment.quantity = value
+    // Quantity should be at least 1 and not exceed item quantity
+    const maxQty = selectedItem.value.quantity || 1
+    const validValue = Math.max(1, Math.min(maxQty, Math.floor(value)))
+    assignment.quantity = validValue
   }
 }
 
@@ -330,7 +336,21 @@ const handleKeyDown = (event: KeyboardEvent) => {
         event.preventDefault()
         // Select all members for current item
         if (selectedItem.value) {
-          selectedItem.value.assignedTo = members.value.map(m => m.id)
+          // Clear existing assignments
+          selectedItem.value.assignments = []
+
+          // Add all members to assignments
+          members.value.forEach(member => {
+            const newAssignment: ItemAssignment = { memberId: member.id }
+
+            if (selectedItem.value!.splitMode === 'ratio') {
+              newAssignment.ratio = 1
+            } else if (selectedItem.value!.splitMode === 'quantity') {
+              newAssignment.quantity = 1
+            }
+
+            selectedItem.value!.assignments.push(newAssignment)
+          })
         }
       }
       break
@@ -452,7 +472,8 @@ onUnmounted(() => {
                         <p class="text-xl font-bold text-primary">${{ item.price.toFixed(2) }}</p>
                         <Badge
                           v-if="item.hasTax"
-                          class="text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-50"
+                          variant="secondary"
+                          class="text-xs"
                         >
                           <DollarSign class="w-3 h-3 mr-1" />
                           Tax +${{ item.taxAmount?.toFixed(2) }}
@@ -593,9 +614,9 @@ onUnmounted(() => {
                           ? 'ring-2 shadow-md'
                           : 'hover:border-primary/30 hover:shadow-sm'
                       ]"
-                      :style="{
-                        ringColor: isMemberAssignedToItem(selectedItemId, member.id) ? member.color : undefined
-                      }"
+                      :style="isMemberAssignedToItem(selectedItemId, member.id) ? {
+                        '--tw-ring-color': member.color
+                      } : {}"
                     >
                       <CardContent class="p-4">
                         <div class="space-y-2">
