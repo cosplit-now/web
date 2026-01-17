@@ -1,4 +1,4 @@
-# SplitWise Design System
+# CoSplit Design System
 
 ## 🎨 Design Philosophy
 

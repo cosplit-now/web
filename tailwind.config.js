@@ -20,6 +20,16 @@ module.exports = {
     },
     extend: {
       colors: {
+        milktea: {
+          1: '#A0826D', // 奶茶棕
+          2: '#C9A88A', // 焦糖奶茶
+          3: '#8B6F47', // 深焦糖
+          4: '#D4B5A0', // 淺奶茶
+          5: '#9B7E5E', // 巧克力奶茶
+          6: '#B8956F', // 榛果奶茶
+          7: '#7A5C42', // 黑糖奶茶
+          8: '#CDB8A3', // 香vanilla奶茶
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

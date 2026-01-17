@@ -1,7 +1,7 @@
 const STORAGE_KEYS = {
-  SPLITS: 'splitwise_splits',
-  MEMBERS: 'splitwise_members',
-  SETTINGS: 'splitwise_settings'
+  SPLITS: 'cosplit_splits',
+  MEMBERS: 'cosplit_members',
+  SETTINGS: 'cosplit_settings'
 } as const
 
 export function saveToStorage<T>(key: string, data: T): void {

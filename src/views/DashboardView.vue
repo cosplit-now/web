@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, History, Receipt, Users, DollarSign, CheckCircle, UserPlus } from 'lucide-vue-next'
+import { useSession } from '@/lib/auth-client'
 
 const router = useRouter()
+const session = useSession()
+
+const userName = computed(() => {
+  return session.value.data?.user?.name || 'there'
+})
 
 // Mock data for demonstration
 const stats = ref({
@@ -58,7 +64,7 @@ const goToAssign = () => {
             <Receipt class="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 class="text-2xl font-bold tracking-tight">SplitWise</h1>
+            <h1 class="text-2xl font-bold tracking-tight">CoSplit</h1>
             <p class="text-xs text-muted-foreground">Smart Receipt Splitter</p>
           </div>
         </div>
@@ -69,7 +75,7 @@ const goToAssign = () => {
     <main class="container mx-auto px-6 py-8 max-w-6xl">
       <!-- Welcome Section -->
       <div class="mb-8">
-        <h2 class="text-3xl font-bold mb-2">Welcome back!</h2>
+        <h2 class="text-3xl font-bold mb-2">Welcome back, {{ userName }}!</h2>
         <p class="text-muted-foreground">Let's split some bills together</p>
       </div>
 

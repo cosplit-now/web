@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+
 import {
   ArrowLeft,
   Check,
@@ -103,6 +103,24 @@ const toggleEdit = (item: OcrItem) => {
 }
 
 const saveItem = (item: OcrItem) => {
+  // Validate item before saving
+  if (!item.name.trim()) {
+    alert('Item name is required')
+    return
+  }
+  if (!item.price || item.price <= 0) {
+    alert('Price must be greater than 0')
+    return
+  }
+  if (!item.quantity || item.quantity <= 0) {
+    alert('Quantity must be at least 1')
+    return
+  }
+  if (item.hasTax && (!item.taxAmount || item.taxAmount < 0)) {
+    alert('Tax amount must be 0 or greater')
+    return
+  }
+
   item.isEditing = false
 }
 
@@ -123,7 +141,7 @@ const addNewItem = () => {
     hasTax: false,
     isEditing: true
   }
-  items.value.push(newItem)
+  items.value.unshift(newItem)
 }
 
 const zoomIn = () => {
@@ -139,11 +157,35 @@ const goBack = () => {
 }
 
 const continueToAssign = () => {
+  // Check if there are any items
+  if (items.value.length === 0) {
+    alert('Please add at least one item before continuing')
+    return
+  }
+
+  // Check if any items are still being edited
+  const hasEditingItems = items.value.some(item => item.isEditing)
+  if (hasEditingItems) {
+    alert('Please save all items before continuing')
+    return
+  }
+
+  // Check if any items have invalid data
+  const hasInvalidItems = items.value.some(item =>
+    !item.name.trim() || !item.price || item.price <= 0 || !item.quantity || item.quantity <= 0
+  )
+  if (hasInvalidItems) {
+    alert('Please ensure all items have valid name, price, and quantity')
+    return
+  }
+
+  // Warn if total doesn't match
   if (!totalMatch.value) {
     if (!confirm('Total amount does not match. Are you sure you want to continue?')) {
       return
     }
   }
+
   router.push('/assign/temp-id')
 }
 </script>
@@ -277,22 +319,48 @@ const continueToAssign = () => {
                       <!-- Edit Mode -->
                       <div v-else class="space-y-3">
                         <div>
-                          <label class="text-xs text-muted-foreground">Item Name</label>
-                          <Input v-model="item.name" class="mt-1" />
+                          <label class="text-xs text-muted-foreground">
+                            Item Name <span class="text-destructive">*</span>
+                          </label>
+                          <Input
+                            v-model="item.name"
+                            class="mt-1"
+                            :class="{ 'border-destructive': !item.name.trim() }"
+                            placeholder="Enter item name"
+                          />
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                           <div>
-                            <label class="text-xs text-muted-foreground">Price</label>
-                            <Input v-model.number="item.price" type="number" step="0.01" class="mt-1" />
+                            <label class="text-xs text-muted-foreground">
+                              Price <span class="text-destructive">*</span>
+                            </label>
+                            <Input
+                              v-model.number="item.price"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="mt-1"
+                              :class="{ 'border-destructive': !item.price || item.price <= 0 }"
+                              placeholder="0.00"
+                            />
                           </div>
                           <div>
-                            <label class="text-xs text-muted-foreground">Quantity</label>
-                            <Input v-model.number="item.quantity" type="number" min="1" class="mt-1" />
+                            <label class="text-xs text-muted-foreground">
+                              Quantity <span class="text-destructive">*</span>
+                            </label>
+                            <Input
+                              v-model.number="item.quantity"
+                              type="number"
+                              min="1"
+                              class="mt-1"
+                              :class="{ 'border-destructive': !item.quantity || item.quantity <= 0 }"
+                              placeholder="1"
+                            />
                           </div>
                         </div>
                         <div class="flex items-center gap-3">
-                          <label class="flex items-center gap-2 text-sm">
-                            <input type="checkbox" v-model="item.hasTax" class="rounded" />
+                          <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" v-model="item.hasTax" class="rounded cursor-pointer" />
                             Has Tax
                           </label>
                           <Input
@@ -300,8 +368,10 @@ const continueToAssign = () => {
                             v-model.number="item.taxAmount"
                             type="number"
                             step="0.01"
+                            min="0"
                             placeholder="Tax amount"
                             class="w-32"
+                            :class="{ 'border-destructive': item.hasTax && (!item.taxAmount || item.taxAmount < 0) }"
                           />
                         </div>
                       </div>
