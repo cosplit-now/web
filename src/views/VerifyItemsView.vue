@@ -19,6 +19,7 @@ import {
   Hash,
   CheckCircle2
 } from 'lucide-vue-next'
+import { cn } from '@/lib/utils'
 
 const router = useRouter()
 
@@ -30,7 +31,6 @@ interface OcrItem {
   confidence: number // 0-100
   hasTax: boolean
   taxAmount?: number
-  isVerified: boolean
   isEditing: boolean
 }
 
@@ -44,7 +44,6 @@ const items = ref<OcrItem[]>([
     confidence: 95,
     hasTax: true,
     taxAmount: 0.35,
-    isVerified: false,
     isEditing: false
   },
   {
@@ -54,7 +53,6 @@ const items = ref<OcrItem[]>([
     quantity: 1,
     confidence: 88,
     hasTax: false,
-    isVerified: false,
     isEditing: false
   },
   {
@@ -65,7 +63,6 @@ const items = ref<OcrItem[]>([
     confidence: 65,
     hasTax: true,
     taxAmount: 0.42,
-    isVerified: false,
     isEditing: false
   },
   {
@@ -76,7 +73,6 @@ const items = ref<OcrItem[]>([
     confidence: 92,
     hasTax: true,
     taxAmount: 0.56,
-    isVerified: false,
     isEditing: false
   },
 ])
@@ -100,34 +96,13 @@ const totalMatch = computed(() =>
   Math.abs(grandTotal.value - (subtotal.value + totalTaxFromReceipt.value)) < 0.01
 )
 
-const verifiedCount = computed(() =>
-  items.value.filter(item => item.isVerified).length
-)
-
-const needsReviewCount = computed(() =>
-  items.value.filter(item => item.confidence < 70).length
-)
-
-// Get confidence color
-const getConfidenceColor = (confidence: number) => {
-  if (confidence >= 90) return 'text-green-600'
-  if (confidence >= 70) return 'text-yellow-600'
-  return 'text-red-600'
-}
-
-const getConfidenceBorder = (confidence: number) => {
-  if (confidence >= 90) return 'border-green-200'
-  if (confidence >= 70) return 'border-yellow-200'
-  return 'border-red-200'
-}
 
 // Actions
 const toggleEdit = (item: OcrItem) => {
   item.isEditing = !item.isEditing
 }
 
-const verifyItem = (item: OcrItem) => {
-  item.isVerified = true
+const saveItem = (item: OcrItem) => {
   item.isEditing = false
 }
 
@@ -146,7 +121,6 @@ const addNewItem = () => {
     quantity: 1,
     confidence: 100,
     hasTax: false,
-    isVerified: false,
     isEditing: true
   }
   items.value.push(newItem)
@@ -166,8 +140,9 @@ const goBack = () => {
 
 const continueToAssign = () => {
   if (!totalMatch.value) {
-    alert('Please verify that the total matches before continuing')
-    return
+    if (!confirm('Total amount does not match. Are you sure you want to continue?')) {
+      return
+    }
   }
   router.push('/assign/temp-id')
 }
@@ -191,7 +166,6 @@ const continueToAssign = () => {
           <Button
             size="lg"
             @click="continueToAssign"
-            :disabled="!totalMatch || needsReviewCount > 0"
           >
             Continue to Assign
           </Button>
@@ -202,34 +176,23 @@ const continueToAssign = () => {
     <!-- Main Content -->
     <main class="container mx-auto px-6 py-8 max-w-7xl">
       <!-- Verification Status -->
-      <Card class="mb-8" :class="totalMatch ? 'border-l-4 border-l-green-400' : 'border-l-4 border-l-yellow-400'">
+      <Card class="mb-8" :class="totalMatch ? 'border-l-4 border-l-primary/80' : 'border-l-4 border-l-accent'">
         <CardContent class="p-6">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <p class="text-sm text-muted-foreground font-medium mb-1">Total Items</p>
               <p class="text-2xl font-bold">{{ items.length }}</p>
             </div>
             <div>
-              <p class="text-sm text-muted-foreground font-medium mb-1">Verified</p>
-              <p class="text-2xl font-bold text-green-600">{{ verifiedCount }}/{{ items.length }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-muted-foreground font-medium mb-1">Needs Review</p>
-              <p class="text-2xl font-bold text-yellow-600">{{ needsReviewCount }}</p>
-            </div>
-            <div>
               <p class="text-sm text-muted-foreground font-medium mb-1">Total Match</p>
               <div class="flex items-center gap-2">
-                <CheckCircle2 v-if="totalMatch" class="w-6 h-6 text-green-600" />
-                <AlertTriangle v-else class="w-6 h-6 text-yellow-600" />
-                <p class="text-2xl font-bold" :class="totalMatch ? 'text-green-600' : 'text-yellow-600'">
+                <CheckCircle2 v-if="totalMatch" class="w-6 h-6 text-primary" />
+                <AlertTriangle v-else class="w-6 h-6 text-accent-foreground" />
+                <p class="text-2xl font-bold" :class="totalMatch ? 'text-primary' : 'text-accent-foreground'">
                   {{ totalMatch ? 'Yes' : 'No' }}
                 </p>
               </div>
             </div>
-          </div>
-          <div class="mt-4">
-            <Progress :model-value="(verifiedCount / items.length) * 100" class="h-2" />
           </div>
         </CardContent>
       </Card>
@@ -281,11 +244,7 @@ const continueToAssign = () => {
             <Card
               v-for="item in items"
               :key="item.id"
-              :class="[
-                'transition-all duration-200',
-                getConfidenceBorder(item.confidence),
-                item.isVerified && 'border-green-300 bg-green-50/50'
-              ]"
+              class="transition-all duration-200"
             >
               <CardContent class="p-5">
                 <div class="space-y-3">
@@ -295,10 +254,6 @@ const continueToAssign = () => {
                       <div v-if="!item.isEditing" class="space-y-2">
                         <div class="flex items-center gap-2">
                           <h3 class="font-bold text-lg">{{ item.name }}</h3>
-                          <Badge v-if="item.isVerified" class="bg-green-100 text-green-700 hover:bg-green-100">
-                            <Check class="w-3 h-3 mr-1" />
-                            Verified
-                          </Badge>
                         </div>
                         <div class="flex items-center gap-3 flex-wrap">
                           <div class="flex items-center gap-1">
@@ -311,17 +266,11 @@ const continueToAssign = () => {
                           </div>
                           <Badge
                             v-if="item.hasTax"
-                            class="text-xs bg-red-50 text-red-700 border-red-200 hover:bg-red-50"
+                            variant="secondary"
+                            class="text-xs"
                           >
                             Tax: ${{ item.taxAmount?.toFixed(2) }}
                           </Badge>
-                        </div>
-                        <div class="flex items-center gap-2">
-                          <span class="text-xs text-muted-foreground">Confidence:</span>
-                          <Progress :model-value="item.confidence" class="h-1.5 w-24" />
-                          <span :class="['text-xs font-medium', getConfidenceColor(item.confidence)]">
-                            {{ item.confidence }}%
-                          </span>
                         </div>
                       </div>
 
@@ -372,7 +321,7 @@ const continueToAssign = () => {
                         v-if="item.isEditing"
                         variant="default"
                         size="sm"
-                        @click="verifyItem(item)"
+                        @click="saveItem(item)"
                       >
                         <Check class="w-4 h-4 mr-1" />
                         Save
@@ -412,12 +361,12 @@ const continueToAssign = () => {
                   <span class="font-bold">Total</span>
                   <div class="flex items-center gap-2">
                     <span class="text-2xl font-bold text-primary">${{ grandTotal.toFixed(2) }}</span>
-                    <CheckCircle2 v-if="totalMatch" class="w-5 h-5 text-green-600" />
-                    <AlertTriangle v-else class="w-5 h-5 text-yellow-600" />
+                    <CheckCircle2 v-if="totalMatch" class="w-5 h-5 text-primary" />
+                    <AlertTriangle v-else class="w-5 h-5 text-accent-foreground" />
                   </div>
                 </div>
-                <div v-if="!totalMatch" class="p-3 rounded-lg bg-yellow-50 border border-yellow-200">
-                  <p class="text-sm text-yellow-800">
+                <div v-if="!totalMatch" class="p-3 rounded-lg bg-accent/20 border border-accent/40">
+                  <p class="text-sm text-accent-foreground">
                     ⚠️ Total doesn't match. Difference: ${{ Math.abs(grandTotal - (subtotal + totalTaxFromReceipt)).toFixed(2) }}
                   </p>
                 </div>
