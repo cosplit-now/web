@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SplitWise - Smart Receipt Splitter
 
 一個智能小票分帳應用，使用 Vue 3 + Shadcn-vue 構建。
@@ -99,3 +100,6 @@ npx shadcn-vue@latest add [component-name]
 3. 使用 TypeScript 類型安全
 4. Composition API + `<script setup>`
 5. Composables 管理共享狀態
+=======
+# web
+>>>>>>> 74c5b1138e519f0749c5c4d67417096245a12ec2
