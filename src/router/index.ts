@@ -37,6 +37,12 @@ const routes: RouteRecordRaw[] = [
     name: 'history',
     component: () => import('../views/HistoryView.vue'),
     meta: { title: 'History' }
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('../views/LoginView.vue'),
+    meta: { title: 'Login' }
   }
 ]
 
