@@ -118,12 +118,12 @@ const continueToDefineMembers = () => {
     return
   }
 
-  // Warn if total doesn't match
-  if (!totalMatch.value) {
-    if (!confirm('Total amount does not match. Are you sure you want to continue?')) {
-      return
-    }
-  }
+  // Skip total match check (temporarily disabled)
+  // if (!totalMatch.value) {
+  //   if (!confirm('Total amount does not match. Are you sure you want to continue?')) {
+  //     return
+  //   }
+  // }
 
   saveCurrentSplit()
   router.push({ name: 'define-members', params: { id: currentSplit.value.id } })

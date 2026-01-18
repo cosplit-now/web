@@ -7,42 +7,77 @@ import type { ReceiptItemResponse } from '@/types/receipt'
 
 /**
  * Convert a receipt item from backend to internal Item format
+ * @param receiptItem - Item from OCR result
+ * @param taxRate - Actual tax rate calculated from receipt (optional, will estimate if not provided)
  */
-export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse): Item {
-  // Calculate tax amount if item has tax (estimate 13% HST for now)
-  // This can be adjusted based on actual tax rate from receipt
-  const TAX_RATE = 0.13
+export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse, taxRate?: number): Item {
   const hasTax = receiptItem.hasTax === true
   
   // Calculate actual price after discount and deposit
   const actualPrice = receiptItem.price - (receiptItem.discount || 0) + (receiptItem.deposit || 0)
-  const taxAmount = hasTax ? actualPrice * TAX_RATE : undefined
+  
+  // Use provided tax rate or estimate at 13%
+  const effectiveTaxRate = taxRate !== undefined ? taxRate : 0.13
+  const taxAmount = hasTax ? actualPrice * effectiveTaxRate : undefined
 
   return {
     id: crypto.randomUUID(),
     name: receiptItem.name,
     price: receiptItem.price,
-    quantity: receiptItem.quantity || 1, // 默認數量為 1
+    quantity: receiptItem.quantity || 1,
     hasTax: hasTax,
     taxAmount: taxAmount,
     discount: receiptItem.discount,
     deposit: receiptItem.deposit,
-    splitMode: 'equal', // Default to equal split
-    assignments: [], // No assignments yet
+    splitMode: 'equal',
+    assignments: [],
   }
 }
 
 /**
  * Convert array of receipt items from backend to internal Item format
+ * @param receiptItems - Items from OCR result
+ * @param backendTotal - Total from backend (optional, will calculate tax rate if provided)
  */
-export function convertReceiptItems(receiptItems: ReceiptItemResponse[]): Item[] {
-  return receiptItems.map(convertReceiptItemToItem)
+export function convertReceiptItems(receiptItems: ReceiptItemResponse[], backendTotal?: number): Item[] {
+  let taxRate: number | undefined = undefined
+  
+  // If backend provides total, calculate actual tax rate
+  if (backendTotal !== undefined) {
+    // Calculate subtotal (with discounts and deposits)
+    const subtotal = receiptItems.reduce((sum, item) => {
+      const actualPrice = item.price - (item.discount || 0) + (item.deposit || 0)
+      return sum + actualPrice * (item.quantity || 1)
+    }, 0)
+    
+    // Calculate taxable amount (with discounts and deposits)
+    const taxableAmount = receiptItems
+      .filter(item => item.hasTax === true)
+      .reduce((sum, item) => {
+        const actualPrice = item.price - (item.discount || 0) + (item.deposit || 0)
+        return sum + actualPrice * (item.quantity || 1)
+      }, 0)
+    
+    // Calculate actual tax rate from backend total
+    if (taxableAmount > 0) {
+      const actualTax = backendTotal - subtotal
+      taxRate = actualTax / taxableAmount
+      console.log(`[Receipt Converter] Calculated tax rate: ${(taxRate * 100).toFixed(2)}%`)
+    }
+  }
+  
+  return receiptItems.map(item => convertReceiptItemToItem(item, taxRate))
 }
 
 /**
  * Calculate total from receipt items
+ * @param items - Receipt items
+ * @param backendTotal - Total from backend (optional, will use this if provided)
  */
-export function calculateReceiptTotal(items: ReceiptItemResponse[]): {
+export function calculateReceiptTotal(
+  items: ReceiptItemResponse[], 
+  backendTotal?: number
+): {
   subtotal: number
   totalTax: number
   totalDiscount: number
@@ -60,18 +95,34 @@ export function calculateReceiptTotal(items: ReceiptItemResponse[]): {
     totalDeposit += (item.deposit || 0)
   })
 
-  // Estimate tax at 13% on taxable items
-  const TAX_RATE = 0.13
-  const taxableAmount = items
-    .filter(item => item.hasTax === true)
-    .reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0)
-  
-  const totalTax = taxableAmount * TAX_RATE
+  // Calculate subtotal after discounts and deposits
+  const actualSubtotal = subtotal - totalDiscount + totalDeposit
 
-  const grandTotal = subtotal + totalTax + totalDeposit - totalDiscount
+  let totalTax: number
+  let grandTotal: number
+
+  // Use backend total if provided
+  if (backendTotal !== undefined) {
+    grandTotal = backendTotal
+    totalTax = backendTotal - actualSubtotal
+    console.log(`[Receipt Converter] Using backend total: $${backendTotal.toFixed(2)}, calculated tax: $${totalTax.toFixed(2)}`)
+  } else {
+    // Estimate tax at 13% on taxable items (fallback)
+    const TAX_RATE = 0.13
+    const taxableAmount = items
+      .filter(item => item.hasTax === true)
+      .reduce((sum, item) => {
+        const actualPrice = item.price - (item.discount || 0) + (item.deposit || 0)
+        return sum + actualPrice * (item.quantity || 1)
+      }, 0)
+    
+    totalTax = taxableAmount * TAX_RATE
+    grandTotal = actualSubtotal + totalTax
+    console.log(`[Receipt Converter] Estimating tax at 13%: $${totalTax.toFixed(2)}`)
+  }
 
   return {
-    subtotal,
+    subtotal: actualSubtotal,
     totalTax,
     totalDiscount,
     totalDeposit,

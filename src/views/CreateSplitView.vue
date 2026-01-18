@@ -49,7 +49,7 @@ const continueToVerify = async () => {
 
   try {
     // Call the OCR API with progress callback
-    const receiptItems = await analyzeReceipt(
+    const receiptResult = await analyzeReceipt(
       imageKey.value,
       (status: string, progress: number) => {
         // Map API status to user-friendly messages
@@ -84,11 +84,16 @@ const continueToVerify = async () => {
     analysisProgress.value = 95
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    // Convert backend items to our Item format
-    const items = convertReceiptItems(receiptItems)
+    const receiptItems = receiptResult.items
+    const backendTotal = receiptResult.total
 
-    // Calculate totals
-    const totals = calculateReceiptTotal(receiptItems)
+    console.log('[CreateSplit] Backend total:', backendTotal)
+
+    // Convert backend items to our Item format with actual tax rate from backend
+    const items = convertReceiptItems(receiptItems, backendTotal)
+
+    // Calculate totals using backend total if available
+    const totals = calculateReceiptTotal(receiptItems, backendTotal)
 
     // Create split with real OCR data
     const newSplit = createSplit({ imageKey: imageKey.value })
