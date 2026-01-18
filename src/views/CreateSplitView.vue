@@ -60,6 +60,12 @@ const continueToVerify = async () => {
           case 'uploaded':
             analysisStep.value = 'Receipt uploaded, processing...'
             break
+          case 'ocr_processing':
+            analysisStep.value = 'Scanning and extracting items...'
+            break
+          case 'ocr_done':
+            analysisStep.value = 'OCR completed, processing results...'
+            break
           case 'processing':
             analysisStep.value = 'Scanning and extracting items...'
             break

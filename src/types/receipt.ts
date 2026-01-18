@@ -25,16 +25,10 @@ export type ReceiptStatus =
   | 'ocr_failed'
   | 'confirmed'
 
-// Receipt upload response
-export interface UploadReceiptResponse {
-  id: string
-  status: ReceiptStatus
-  imageUrl: string
-  ocrResult: any | null
-  finalResult: FinalReceiptResult | null
-  userId: string
-  createdAt: string
-  updatedAt: string
+// OCR Result structure (when ocrResult is a JSON string)
+export interface OcrResultData {
+  items: ReceiptItemResponse[]
+  total: number
 }
 
 // Final result structure
@@ -43,13 +37,27 @@ export interface FinalReceiptResult {
   items: ReceiptItemResponse[]
 }
 
+// Receipt upload response
+// ocrResult can be a JSON string or parsed object when status is 'ocr_done'
+export interface UploadReceiptResponse {
+  id: string
+  status: ReceiptStatus
+  imageUrl: string
+  ocrResult: string | OcrResultData | null  // JSON string from backend, or parsed object
+  finalResult: FinalReceiptResult | null
+  userId: string
+  createdAt: string
+  updatedAt: string
+}
+
 // GET /receipts/:id response
 export interface GetReceiptResponse {
   id: string
   imageUrl: string
   status: ReceiptStatus
-  userId: string
+  ocrResult: string | OcrResultData | null  // JSON string from backend, or parsed object
   finalResult: FinalReceiptResult | null
+  userId: string
   createdAt: string
   updatedAt: string
 }

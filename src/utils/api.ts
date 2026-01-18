@@ -3,7 +3,7 @@
  * 用於與後端 API 通訊
  */
 
-import type { AnalyzeReceiptRequest, ReceiptItemResponse } from '@/types/receipt'
+import type { AnalyzeReceiptRequest, ReceiptItemResponse, OcrResultData } from '@/types/receipt'
 import { authClient } from '@/lib/auth-client'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
@@ -268,6 +268,32 @@ export async function getAllReceipts(): Promise<import('@/types/receipt').GetRec
 }
 
 /**
+ * Parse ocrResult from JSON string to OcrResultData
+ * @param ocrResult JSON string or already parsed object
+ * @returns Parsed OcrResultData or null
+ */
+function parseOcrResult(ocrResult: string | OcrResultData | null): OcrResultData | null {
+  if (!ocrResult) return null
+  
+  // If already parsed object, return as is
+  if (typeof ocrResult === 'object' && ocrResult !== null && 'items' in ocrResult) {
+    return ocrResult as OcrResultData
+  }
+  
+  // If it's a string, try to parse it
+  if (typeof ocrResult === 'string') {
+    try {
+      return JSON.parse(ocrResult) as OcrResultData
+    } catch (error) {
+      console.error('[API] Failed to parse ocrResult:', error)
+      return null
+    }
+  }
+  
+  return null
+}
+
+/**
  * Poll and wait for receipt processing to complete
  * @param receiptId Receipt ID
  * @param onProgress Progress callback (status, progress)
@@ -294,10 +320,23 @@ export async function pollReceiptResult(
       onProgress(receipt.status, progress)
     }
 
-    // Success: OCR processing completed or confirmed
-    if ((receipt.status === 'ocr_done' || receipt.status === 'confirmed') && receipt.finalResult) {
-      console.log('[API] Receipt processing completed!')
-      return receipt.finalResult.items
+    // Success: Check if OCR is done (status === 'ocr_done' or 'confirmed')
+    if (receipt.status === 'ocr_done' || receipt.status === 'confirmed') {
+      // Priority 1: Use finalResult if available
+      if (receipt.finalResult && receipt.finalResult.items) {
+        console.log('[API] Receipt processing completed! Using finalResult.')
+        return receipt.finalResult.items
+      }
+      
+      // Priority 2: Parse ocrResult if available
+      const parsedOcrResult = parseOcrResult(receipt.ocrResult)
+      if (parsedOcrResult && parsedOcrResult.items && parsedOcrResult.items.length > 0) {
+        console.log('[API] Receipt processing completed! Using ocrResult.')
+        return parsedOcrResult.items
+      }
+      
+      // If status is done but no data, log warning but continue polling
+      console.warn('[API] Status is ocr_done but no data found, continuing to poll...')
     }
 
     // Failed: OCR processing failed
@@ -329,125 +368,10 @@ export async function analyzeReceipt(
   const uploadResponse = await uploadReceipt(imageKey)
   console.log('[API] Receipt uploaded with ID:', uploadResponse.id)
 
-  // Step 2: Mock polling with test data (OCR temporarily disabled)
-  console.log('[API] ⚠️ Using mock data - OCR API temporarily disabled')
-  if (onProgress) onProgress('processing', 40)
+  // Step 2: Poll for OCR results
+  console.log('[API] Starting polling for OCR results...')
+  const items = await pollReceiptResult(uploadResponse.id, onProgress)
   
-  // Simulate processing delay
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  if (onProgress) onProgress('ocr_processing', 60)
-  
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  if (onProgress) onProgress('ocr_done', 80)
-  
-  await new Promise(resolve => setTimeout(resolve, 500))
-  if (onProgress) onProgress('completed', 100)
-
-  // Return mock data
-  const mockItems: ReceiptItemResponse[] = [
-    {
-      name: "QTIPS",
-      price: 13.99,
-      quantity: 1,
-      hasTax: true,
-      discount: 4
-    },
-    {
-      name: "PARMESAN 710",
-      price: 17.49,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "BLACKBERRIES",
-      price: 4.99,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "ANCHOVY",
-      price: 16.99,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "MINI BELLAS",
-      price: 5.49,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "BURRATA",
-      price: 17.99,
-      quantity: 1,
-      hasTax: true,
-      discount: 4
-    },
-    {
-      name: "WHSE OAT SCR",
-      price: 14.99,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "CETAPHIL ULT",
-      price: 29.99,
-      quantity: 1,
-      hasTax: true,
-      discount: 6
-    },
-    {
-      name: "DOVE SHAMPOO",
-      price: 11.99,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "WARM N COZY",
-      price: 20.99,
-      quantity: 1,
-      hasTax: true,
-      deposit: 0.2
-    },
-    {
-      name: "KS BB KCUPS",
-      price: 48.99,
-      quantity: 1,
-      hasTax: false
-    },
-    {
-      name: "TIRAMISU",
-      price: 12.99,
-      quantity: 1,
-      hasTax: false,
-      discount: 3
-    },
-    {
-      name: "ACE BAKERY",
-      price: 6.49,
-      quantity: 1,
-      hasTax: true
-    },
-    {
-      name: "ALCAN FOIL",
-      price: 16.99,
-      quantity: 1,
-      hasTax: true,
-      discount: 4
-    },
-    {
-      name: "CHARMIN ULTR",
-      price: 32.49,
-      quantity: 1,
-      hasTax: true,
-      discount: 6.5
-    }
-  ]
-
-  console.log('[API] Returning mock items:', mockItems)
-  return mockItems
-
-  // Real API polling (temporarily disabled)
-  // const items = await pollReceiptResult(uploadResponse.id, onProgress)
-  // return items
+  console.log('[API] Receipt analysis completed! Items:', items)
+  return items
 }
