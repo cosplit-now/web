@@ -22,7 +22,7 @@ const stepTitles = [
 ]
 
 // Image upload
-const { isUploading, uploadProgress, error: uploadError, imageUrl, imageKey, uploadImage, resetUpload } = useImageUpload()
+const { isUploading, uploadProgress, error: uploadError, imageUrl, uploadImage, resetUpload } = useImageUpload()
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref<string | null>(null)
