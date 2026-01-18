@@ -7,12 +7,14 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign, RotateCcw } from 'lucide-vue-next'
-import { type Item, type SplitMode, type ItemAssignment, calculateMemberShare } from '@/types/item'
+import { type Item, type SplitMode, type ItemAssignment, calculateMemberShare, getItemActualPrice } from '@/types/item'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
+import { useSession } from '@/lib/auth-client'
 
 const route = useRoute()
 const router = useRouter()
+const session = useSession()
 const { currentSplit, findSplit, saveCurrentSplit, updateItem } = useSplitData()
 const { getMemberById } = useMembers()
 
@@ -46,13 +48,13 @@ const assignedItemsCount = computed(() =>
 )
 
 const totalAmount = computed(() =>
-  items.value.reduce((sum, item) => sum + item.price, 0)
+  items.value.reduce((sum, item) => sum + getItemActualPrice(item), 0)
 )
 
 const unassignedAmount = computed(() => {
   const assigned = items.value
     .filter(item => item.assignments && item.assignments.length > 0)
-    .reduce((sum, item) => sum + item.price, 0)
+    .reduce((sum, item) => sum + getItemActualPrice(item), 0)
   return totalAmount.value - assigned
 })
 
@@ -65,6 +67,20 @@ const getMemberTotal = (memberId: string) => {
   return items.value.reduce((sum, item) => {
     return sum + calculateMemberShare(item, memberId)
   }, 0)
+}
+
+// Get member display name
+const getMemberDisplayName = (memberId: string) => {
+  const member = getMemberById(memberId)
+  if (!member) return 'Unknown'
+  
+  // Check if this member is the current user
+  const currentUserId = session.value.data?.user?.id
+  if (currentUserId && memberId === currentUserId) {
+    return 'You'
+  }
+  
+  return member.name
 }
 
 // Item states
@@ -135,8 +151,12 @@ const toggleMemberForItem = (memberId: string) => {
   } else {
     const newAssignment: ItemAssignment = { memberId }
 
-    if (item.splitMode === 'ratio') newAssignment.ratio = 1
-    else if (item.splitMode === 'quantity') newAssignment.quantity = 1
+    if (item.splitMode === 'ratio') {
+      // If this is the first person assigned, set to 100%
+      newAssignment.ratio = item.assignments.length === 0 ? 100 : 1
+    } else if (item.splitMode === 'quantity') {
+      newAssignment.quantity = 1
+    }
 
     item.assignments.push(newAssignment)
   }
@@ -260,10 +280,14 @@ const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && selectedItem.value) {
         event.preventDefault()
         const updatedItem = { ...selectedItem.value }
-        updatedItem.assignments = members.value.map(member => {
+        updatedItem.assignments = members.value.map((member, index) => {
             const newAssignment: ItemAssignment = { memberId: member.id }
-            if (updatedItem.splitMode === 'ratio') newAssignment.ratio = 1
-            else if (updatedItem.splitMode === 'quantity') newAssignment.quantity = 1
+            if (updatedItem.splitMode === 'ratio') {
+              // First person gets 100%, others get 1%
+              newAssignment.ratio = index === 0 ? 100 : 1
+            } else if (updatedItem.splitMode === 'quantity') {
+              newAssignment.quantity = 1
+            }
             return newAssignment
         })
         updateItem(updatedItem)
@@ -380,7 +404,29 @@ const handleKeyDown = (event: KeyboardEvent) => {
                         <h3 class="font-bold text-lg">{{ item.name }}</h3>
                       </div>
                       <div class="flex items-center gap-2 flex-wrap">
-                        <p class="text-xl font-bold text-primary">${{ item.price.toFixed(2) }}</p>
+                        <div class="flex items-center gap-2">
+                          <p 
+                            v-if="item.discount" 
+                            class="text-sm text-muted-foreground line-through"
+                          >
+                            ${{ item.price.toFixed(2) }}
+                          </p>
+                          <p class="text-xl font-bold text-primary">${{ getItemActualPrice(item).toFixed(2) }}</p>
+                        </div>
+                        <Badge
+                          v-if="item.discount"
+                          variant="destructive"
+                          class="text-xs"
+                        >
+                          Save ${{ item.discount.toFixed(2) }}
+                        </Badge>
+                        <Badge
+                          v-if="item.deposit"
+                          variant="secondary"
+                          class="text-xs"
+                        >
+                          Deposit +${{ item.deposit.toFixed(2) }}
+                        </Badge>
                         <Badge
                           v-if="item.hasTax && item.taxAmount"
                           variant="secondary"
@@ -536,10 +582,10 @@ const handleKeyDown = (event: KeyboardEvent) => {
                               class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg"
                               :style="{ backgroundColor: member.color }"
                             >
-                              {{ member.name.charAt(0) }}
+                              {{ getMemberDisplayName(member.id).charAt(0) }}
                             </div>
                             <div class="flex-1">
-                              <p class="font-bold text-lg">{{ member.name }}</p>
+                              <p class="font-bold text-lg">{{ getMemberDisplayName(member.id) }}</p>
                               <p class="text-sm text-muted-foreground">
                                 This item: ${{ selectedItem ? calculateMemberShare(selectedItem, member.id).toFixed(2) : '0.00' }}
                               </p>
@@ -606,9 +652,9 @@ const handleKeyDown = (event: KeyboardEvent) => {
                         class="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold"
                         :style="{ backgroundColor: member.color }"
                       >
-                        {{ member.name.charAt(0) }}
+                        {{ getMemberDisplayName(member.id).charAt(0) }}
                       </div>
-                      <span class="font-medium">{{ member.name }}</span>
+                      <span class="font-medium">{{ getMemberDisplayName(member.id) }}</span>
                       <Badge variant="outline" class="text-xs">{{ index + 1 }}</Badge>
                     </div>
                     <span class="text-xl font-bold">${{ getMemberTotal(member.id).toFixed(2) }}</span>

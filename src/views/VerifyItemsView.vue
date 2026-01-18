@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useSplitData } from '@/composables/useSplitData'
 import type { Item } from '@/types/item'
+import { getItemActualPrice } from '@/types/item'
 
 import {
   ArrowLeft,
@@ -39,7 +40,7 @@ onMounted(() => {
 // Computed values
 const items = computed(() => currentSplit.value?.items || [])
 const subtotal = computed(() =>
-  items.value.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0)
+  items.value.reduce((sum, item) => sum + (getItemActualPrice(item) * (item.quantity || 1)), 0)
 )
 const totalTax = computed(() =>
   items.value.reduce((sum, item) => sum + (item.taxAmount || 0), 0)
@@ -193,10 +194,30 @@ const continueToDefineMembers = () => {
                           <h3 class="font-bold text-lg">{{ item.name }}</h3>
                         </div>
                         <div class="flex items-center gap-3 flex-wrap">
-                          <div class="flex items-center gap-1">
+                          <div class="flex items-center gap-2">
                             <DollarSign class="w-4 h-4 text-muted-foreground" />
-                            <span class="text-xl font-bold text-primary">${{ item.price.toFixed(2) }}</span>
+                            <span 
+                              v-if="item.discount" 
+                              class="text-sm text-muted-foreground line-through"
+                            >
+                              ${{ item.price.toFixed(2) }}
+                            </span>
+                            <span class="text-xl font-bold text-primary">${{ getItemActualPrice(item).toFixed(2) }}</span>
                           </div>
+                          <Badge
+                            v-if="item.discount"
+                            variant="destructive"
+                            class="text-xs"
+                          >
+                            Save ${{ item.discount.toFixed(2) }}
+                          </Badge>
+                          <Badge
+                            v-if="item.deposit"
+                            variant="secondary"
+                            class="text-xs"
+                          >
+                            Deposit +${{ item.deposit.toFixed(2) }}
+                          </Badge>
                           <div class="flex items-center gap-1">
                             <Hash class="w-4 h-4 text-muted-foreground" />
                             <span class="text-sm">Qty: {{ item.quantity }}</span>
@@ -250,6 +271,34 @@ const continueToDefineMembers = () => {
                               class="mt-1"
                               :class="{ 'border-destructive': !item.quantity || item.quantity <= 0 }"
                               placeholder="1"
+                            />
+                          </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                          <div>
+                            <label class="text-xs text-muted-foreground">
+                              Discount
+                            </label>
+                            <Input
+                              v-model.number="item.discount"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="mt-1"
+                              placeholder="0.00"
+                            />
+                          </div>
+                          <div>
+                            <label class="text-xs text-muted-foreground">
+                              Deposit
+                            </label>
+                            <Input
+                              v-model.number="item.deposit"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="mt-1"
+                              placeholder="0.00"
                             />
                           </div>
                         </div>

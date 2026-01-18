@@ -32,8 +32,9 @@ onMounted(() => {
       // Check if user exists in the global members list
       let userAsMember = getMemberById(user.id);
       if (!userAsMember) {
-        // If not, create them
-        userAsMember = addMember(user.name || 'Me', false, user.id);
+        // If not, create them with friendly name
+        const displayName = 'You'
+        userAsMember = addMember(displayName, false, user.id);
       }
       // 使用 updateSplit 來確保響應式更新
       updateSplit({
@@ -132,8 +133,8 @@ const continueToAssign = () => {
               {{ me.name.charAt(0).toUpperCase() }}
             </div>
             <div class="flex-1">
-              <p class="text-sm text-muted-foreground font-medium mb-1">You</p>
-              <p class="text-xl font-bold">{{ me.name }}</p>
+              <p class="text-xl font-bold">You</p>
+              <p class="text-sm text-muted-foreground">(Current User)</p>
             </div>
           </div>
         </CardContent>

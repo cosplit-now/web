@@ -13,7 +13,10 @@ export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse): Item
   // This can be adjusted based on actual tax rate from receipt
   const TAX_RATE = 0.13
   const hasTax = receiptItem.hasTax === true
-  const taxAmount = hasTax ? receiptItem.price * TAX_RATE : undefined
+  
+  // Calculate actual price after discount and deposit
+  const actualPrice = receiptItem.price - (receiptItem.discount || 0) + (receiptItem.deposit || 0)
+  const taxAmount = hasTax ? actualPrice * TAX_RATE : undefined
 
   return {
     id: crypto.randomUUID(),
@@ -22,11 +25,10 @@ export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse): Item
     quantity: receiptItem.quantity || 1, // 默認數量為 1
     hasTax: hasTax,
     taxAmount: taxAmount,
+    discount: receiptItem.discount,
+    deposit: receiptItem.deposit,
     splitMode: 'equal', // Default to equal split
     assignments: [], // No assignments yet
-    // Store discount and deposit in a note if needed
-    // For now, we'll incorporate discount into the price
-    // Note: You might want to add discount/deposit fields to Item type if needed
   }
 }
 

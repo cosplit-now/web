@@ -9,11 +9,13 @@ import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Share2, FileText, Save, Check, X } from 'lucide-vue-next'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
+import { useSession } from '@/lib/auth-client'
 import { calculateMemberShare } from '@/types/item'
 import type { Item } from '@/types/item'
 
 const route = useRoute()
 const router = useRouter()
+const session = useSession()
 const { currentSplit, findSplit, saveCurrentSplit } = useSplitData()
 const { getMemberById } = useMembers()
 
@@ -28,6 +30,20 @@ const totalAmount = computed(() => {
   if (!currentSplit.value) return 0
   return currentSplit.value.items.reduce((sum, item) => sum + item.price + (item.taxAmount || 0), 0)
 })
+
+// Get member display name
+const getMemberDisplayName = (memberId: string) => {
+  const member = getMemberById(memberId)
+  if (!member) return 'Unknown'
+  
+  // Check if this member is the current user
+  const currentUserId = session.value.data?.user?.id
+  if (currentUserId && memberId === currentUserId) {
+    return 'You'
+  }
+  
+  return member.name
+}
 
 const memberSummaries = computed(() => {
   if (!currentSplit.value) return []
@@ -48,7 +64,7 @@ const memberSummaries = computed(() => {
 
     return {
       id: member.id,
-      name: member.name,
+      name: getMemberDisplayName(member.id),
       amount: memberTotal,
       isPaid: false, // This would be part of the state in a real app
       items: memberItems

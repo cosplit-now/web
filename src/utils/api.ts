@@ -413,13 +413,13 @@ export async function analyzeReceipt(
       name: "KS BB KCUPS",
       price: 48.99,
       quantity: 1,
-      hasTax: true
+      hasTax: false
     },
     {
       name: "TIRAMISU",
       price: 12.99,
       quantity: 1,
-      hasTax: true,
+      hasTax: false,
       discount: 3
     },
     {
