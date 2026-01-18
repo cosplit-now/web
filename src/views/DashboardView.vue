@@ -3,7 +3,6 @@ import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Plus, History, Receipt, Users, DollarSign, Image as ImageIcon, Loader2 } from 'lucide-vue-next'
 import { useSession } from '@/lib/auth-client'
 import { useSplitData } from '@/composables/useSplitData'
@@ -53,40 +52,6 @@ const loadReceipts = async () => {
     console.error('[Dashboard] Error loading receipts:', error)
   } finally {
     isLoadingReceipts.value = false
-  }
-}
-
-// Get status badge variant
-const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'ocr_done':
-    case 'confirmed':
-      return 'default'
-    case 'ocr_processing':
-    case 'uploaded':
-      return 'secondary'
-    case 'ocr_failed':
-      return 'destructive'
-    default:
-      return 'outline'
-  }
-}
-
-// Get status display text
-const getStatusText = (status: string) => {
-  switch (status) {
-    case 'uploaded':
-      return 'Uploaded'
-    case 'ocr_processing':
-      return 'Processing'
-    case 'ocr_done':
-      return 'Ready'
-    case 'ocr_failed':
-      return 'Failed'
-    case 'confirmed':
-      return 'Confirmed'
-    default:
-      return status
   }
 }
 
@@ -244,12 +209,7 @@ onMounted(() => {
                     />
                   </div>
                   <div>
-                    <div class="flex items-center gap-3 mb-2">
-                      <h3 class="font-bold text-lg">Receipt</h3>
-                      <Badge :variant="getStatusVariant(receipt.status)">
-                        {{ getStatusText(receipt.status) }}
-                      </Badge>
-                    </div>
+                    <h3 class="font-bold text-lg mb-2">Receipt</h3>
                     <p class="text-sm text-muted-foreground">
                       {{ new Date(receipt.createdAt).toLocaleString() }}
                     </p>

@@ -327,10 +327,127 @@ export async function analyzeReceipt(
   // Step 1: Upload receipt
   if (onProgress) onProgress('uploading', 20)
   const uploadResponse = await uploadReceipt(imageKey)
+  console.log('[API] Receipt uploaded with ID:', uploadResponse.id)
 
-  // Step 2: Poll for results
+  // Step 2: Mock polling with test data (OCR temporarily disabled)
+  console.log('[API] ⚠️ Using mock data - OCR API temporarily disabled')
   if (onProgress) onProgress('processing', 40)
-  const items = await pollReceiptResult(uploadResponse.id, onProgress)
+  
+  // Simulate processing delay
+  await new Promise(resolve => setTimeout(resolve, 1000))
+  if (onProgress) onProgress('ocr_processing', 60)
+  
+  await new Promise(resolve => setTimeout(resolve, 1000))
+  if (onProgress) onProgress('ocr_done', 80)
+  
+  await new Promise(resolve => setTimeout(resolve, 500))
+  if (onProgress) onProgress('completed', 100)
 
-  return items
+  // Return mock data
+  const mockItems: ReceiptItemResponse[] = [
+    {
+      name: "QTIPS",
+      price: 13.99,
+      quantity: 1,
+      hasTax: true,
+      discount: 4
+    },
+    {
+      name: "PARMESAN 710",
+      price: 17.49,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "BLACKBERRIES",
+      price: 4.99,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "ANCHOVY",
+      price: 16.99,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "MINI BELLAS",
+      price: 5.49,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "BURRATA",
+      price: 17.99,
+      quantity: 1,
+      hasTax: true,
+      discount: 4
+    },
+    {
+      name: "WHSE OAT SCR",
+      price: 14.99,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "CETAPHIL ULT",
+      price: 29.99,
+      quantity: 1,
+      hasTax: true,
+      discount: 6
+    },
+    {
+      name: "DOVE SHAMPOO",
+      price: 11.99,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "WARM N COZY",
+      price: 20.99,
+      quantity: 1,
+      hasTax: true,
+      deposit: 0.2
+    },
+    {
+      name: "KS BB KCUPS",
+      price: 48.99,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "TIRAMISU",
+      price: 12.99,
+      quantity: 1,
+      hasTax: true,
+      discount: 3
+    },
+    {
+      name: "ACE BAKERY",
+      price: 6.49,
+      quantity: 1,
+      hasTax: true
+    },
+    {
+      name: "ALCAN FOIL",
+      price: 16.99,
+      quantity: 1,
+      hasTax: true,
+      discount: 4
+    },
+    {
+      name: "CHARMIN ULTR",
+      price: 32.49,
+      quantity: 1,
+      hasTax: true,
+      discount: 6.5
+    }
+  ]
+
+  console.log('[API] Returning mock items:', mockItems)
+  return mockItems
+
+  // Real API polling (temporarily disabled)
+  // const items = await pollReceiptResult(uploadResponse.id, onProgress)
+  // return items
 }
