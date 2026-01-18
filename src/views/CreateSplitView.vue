@@ -8,6 +8,8 @@ import { ArrowLeft, Upload, Image as ImageIcon, X, CheckCircle2, Camera, Loader2
 import { useImageUpload } from '@/composables/useImageUpload'
 import { useToast } from '@/composables/useToast'
 import { useSplitData } from '@/composables/useSplitData'
+import { analyzeReceipt } from '@/utils/api'
+import { convertReceiptItems, calculateReceiptTotal } from '@/utils/receipt-converter'
 
 const router = useRouter()
 const toast = useToast()
@@ -46,14 +48,42 @@ const continueToVerify = async () => {
   analysisProgress.value = 0
 
   try {
-    // Simulate OCR analysis steps
-    await simulateAnalysisStep('Uploading receipt...', 20, 800)
-    await simulateAnalysisStep('Scanning text...', 50, 1200)
-    await simulateAnalysisStep('Extracting items...', 75, 1000)
-    await simulateAnalysisStep('Processing data...', 95, 800)
+    // Step 1: Uploading
+    analysisStep.value = 'Uploading receipt...'
+    analysisProgress.value = 20
+    await new Promise(resolve => setTimeout(resolve, 500))
 
-    // Create split
+    // Step 2: Calling OCR API
+    analysisStep.value = 'Scanning text...'
+    analysisProgress.value = 40
+    
+    // Call the OCR API
+    const receiptItems = await analyzeReceipt(imageKey.value)
+    
+    // Step 3: Processing results
+    analysisStep.value = 'Extracting items...'
+    analysisProgress.value = 70
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // Convert backend items to our Item format
+    const items = convertReceiptItems(receiptItems)
+    
+    // Calculate totals
+    const totals = calculateReceiptTotal(receiptItems)
+    
+    analysisStep.value = 'Processing data...'
+    analysisProgress.value = 90
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // Create split with real OCR data
     const newSplit = createSplit({ imageKey: imageKey.value })
+    
+    // Replace mock items with real OCR items
+    newSplit.items = items
+    newSplit.subtotal = totals.subtotal
+    newSplit.totalTaxFromReceipt = totals.totalTax
+    newSplit.total = totals.grandTotal
+    
     saveCurrentSplit()
 
     // Complete
@@ -65,25 +95,10 @@ const continueToVerify = async () => {
 
     // Navigate to verify page
     router.push({ name: 'verify', params: { id: newSplit.id } })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Analysis failed:', error)
-    toast.error('Failed to analyze receipt')
+    toast.error(error.message || 'Failed to analyze receipt')
     isAnalyzing.value = false
-  }
-}
-
-const simulateAnalysisStep = async (step: string, progress: number, duration: number) => {
-  analysisStep.value = step
-  
-  // Smoothly animate progress
-  const startProgress = analysisProgress.value
-  const progressDiff = progress - startProgress
-  const steps = 20
-  const stepDuration = duration / steps
-  
-  for (let i = 0; i <= steps; i++) {
-    analysisProgress.value = startProgress + (progressDiff * i / steps)
-    await new Promise(resolve => setTimeout(resolve, stepDuration))
   }
 }
 
