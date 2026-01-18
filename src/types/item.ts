@@ -15,6 +15,7 @@ export interface Item {
   taxAmount?: number    // Tax amount if applicable
   splitMode: SplitMode
   assignments: ItemAssignment[]  // Array of member assignments (empty by default)
+  isEditing?: boolean   // UI state: whether item is being edited (optional, for VerifyItemsView)
 }
 
 // Calculate how much each member owes for an item

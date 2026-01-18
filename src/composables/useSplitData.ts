@@ -50,8 +50,8 @@ export function useSplitData() {
       status: 'draft',
       name: 'Untitled Split',
       totalTaxFromReceipt: 3.18, // Mock value
-      subtotal: mockItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      total: mockItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 3.18, // Mock value
+      subtotal: mockItems.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0),
+      total: mockItems.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0) + 3.18, // Mock value
     };
     currentSplit.value = newSplit;
     return newSplit;
@@ -68,8 +68,8 @@ export function useSplitData() {
       status: 'draft',
       name: 'Untitled Split',
       totalTaxFromReceipt: 3.18, // Mock value
-      subtotal: mockItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-      total: mockItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 3.18, // Mock value
+      subtotal: mockItems.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0),
+      total: mockItems.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0) + 3.18, // Mock value
   })
 
 
@@ -143,9 +143,9 @@ export function useSplitData() {
       name: '',
       price: 0,
       quantity: 1,
-      confidence: 100,
       hasTax: false,
-      isEditing: true
+      splitMode: 'equal',
+      assignments: []
     }
     currentSplit.value.items.unshift(newItem)
   }

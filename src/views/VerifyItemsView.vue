@@ -39,7 +39,7 @@ onMounted(() => {
 // Computed values
 const items = computed(() => currentSplit.value?.items || [])
 const subtotal = computed(() =>
-  items.value.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  items.value.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0)
 )
 const totalTax = computed(() =>
   items.value.reduce((sum, item) => sum + (item.taxAmount || 0), 0)
@@ -68,11 +68,11 @@ const saveItem = (item: Item) => {
     alert('Price must be greater than 0')
     return
   }
-  if (item.quantity === null || item.quantity <= 0) {
+  if (!item.quantity || item.quantity <= 0) {
     alert('Quantity must be at least 1')
     return
   }
-  if (item.hasTax && (item.taxAmount === null || item.taxAmount < 0)) {
+  if (item.hasTax && item.taxAmount !== undefined && item.taxAmount < 0) {
     alert('Tax amount must be 0 or greater')
     return
   }
@@ -110,7 +110,7 @@ const continueToDefineMembers = () => {
 
   // Check if any items have invalid data
   const hasInvalidItems = items.value.some(item =>
-    !item.name.trim() || item.price === null || item.price <= 0 || item.quantity === null || item.quantity <= 0
+    !item.name.trim() || !item.price || item.price <= 0 || !item.quantity || item.quantity <= 0
   )
   if (hasInvalidItems) {
     alert('Please ensure all items have valid name, price, and quantity')

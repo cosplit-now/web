@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, History, Receipt, Users, DollarSign, CheckCircle, UserPlus } from 'lucide-vue-next'
+import { Plus, History, Receipt, Users, DollarSign } from 'lucide-vue-next'
 import { useSession } from '@/lib/auth-client'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
@@ -34,14 +34,6 @@ const goToCreate = () => {
 
 const goToHistory = () => {
   router.push('/history')
-}
-
-const goToVerify = () => {
-  router.push('/verify/demo-id')
-}
-
-const goToAssign = () => {
-  router.push('/assign/demo-id')
 }
 </script>
 

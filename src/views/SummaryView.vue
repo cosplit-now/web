@@ -10,7 +10,6 @@ import { ArrowLeft, Share2, FileText, Save, Check, X } from 'lucide-vue-next'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
 import { calculateMemberShare } from '@/types/item'
-import type { Member } from '@/types/member'
 import type { Item } from '@/types/item'
 
 const route = useRoute()

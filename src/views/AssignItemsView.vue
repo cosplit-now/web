@@ -14,7 +14,7 @@ import { useMembers } from '@/composables/useMembers'
 const route = useRoute()
 const router = useRouter()
 const { currentSplit, findSplit, saveCurrentSplit, updateItem } = useSplitData()
-const { members: allMembers, getMemberById } = useMembers()
+const { getMemberById } = useMembers()
 
 const selectedItemId = ref<string | null>(null)
 
