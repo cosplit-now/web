@@ -12,14 +12,15 @@ export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse): Item
   // Calculate tax amount if item has tax (estimate 13% HST for now)
   // This can be adjusted based on actual tax rate from receipt
   const TAX_RATE = 0.13
-  const taxAmount = receiptItem.hasTax ? receiptItem.price * TAX_RATE : undefined
+  const hasTax = receiptItem.hasTax === true
+  const taxAmount = hasTax ? receiptItem.price * TAX_RATE : undefined
 
   return {
     id: crypto.randomUUID(),
     name: receiptItem.name,
     price: receiptItem.price,
-    quantity: receiptItem.quantity,
-    hasTax: receiptItem.hasTax,
+    quantity: receiptItem.quantity || 1, // 默認數量為 1
+    hasTax: hasTax,
     taxAmount: taxAmount,
     splitMode: 'equal', // Default to equal split
     assignments: [], // No assignments yet
@@ -51,7 +52,8 @@ export function calculateReceiptTotal(items: ReceiptItemResponse[]): {
   let totalDeposit = 0
 
   items.forEach(item => {
-    subtotal += item.price * item.quantity
+    const quantity = item.quantity || 1
+    subtotal += item.price * quantity
     totalDiscount += (item.discount || 0)
     totalDeposit += (item.deposit || 0)
   })
@@ -59,8 +61,8 @@ export function calculateReceiptTotal(items: ReceiptItemResponse[]): {
   // Estimate tax at 13% on taxable items
   const TAX_RATE = 0.13
   const taxableAmount = items
-    .filter(item => item.hasTax)
-    .reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    .filter(item => item.hasTax === true)
+    .reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0)
   
   const totalTax = taxableAmount * TAX_RATE
 
