@@ -7,7 +7,7 @@ import SummaryView from '../views/SummaryView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import LoginView from '../views/LoginView.vue'
 import ToastTestView from '../views/ToastTestView.vue'
-import { authClient } from '@/lib/auth-client'
+import { getCachedOrFetchSession, createAnonymousUser } from '@/lib/session-manager'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -68,15 +68,8 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const isLoginPage = to.name === 'login'
 
-  // Try to get existing session
-  let session = null
-  try {
-    const sessionResponse = await authClient.getSession()
-    session = sessionResponse?.data
-  } catch (error: any) {
-    // getSession failed (404 or CORS), but this is OK - we'll try to create anonymous user
-    console.warn(`[Auth Guard] getSession failed: ${error.message}`)
-  }
+  // Try to get existing session (with caching)
+  const session = await getCachedOrFetchSession()
 
   // If user has no session
   if (!session) {
@@ -88,23 +81,15 @@ router.beforeEach(async (to, _from, next) => {
 
     // For any other route without session, automatically create anonymous user
     console.info('[Auth Guard] No session found, attempting to create anonymous user...')
-    try {
-      const result = await authClient.signIn.anonymous()
-      if (result.error) {
-        console.error('[Auth Guard] Failed to create anonymous user:', result.error)
-        // If anonymous creation fails, show error and stay on current page
-        alert('無法連接到認證服務器，請稍後再試。\n\nCannot connect to authentication server. Please try again later.')
-        next(false) // Cancel navigation
-      } else {
-        console.info('[Auth Guard] Anonymous user created successfully')
-        // Anonymous user created successfully, proceed to the requested route
-        next()
-      }
-    } catch (error: any) {
-      console.error('[Auth Guard] Failed to create anonymous user:', error)
-      // If anonymous creation fails, show error and stay on current page
+    const result = await createAnonymousUser()
+
+    if (!result.success) {
+      console.error('[Auth Guard] Failed to create anonymous user:', result.error)
       alert('無法連接到認證服務器，請稍後再試。\n\nCannot connect to authentication server. Please try again later.')
       next(false) // Cancel navigation
+    } else {
+      console.info('[Auth Guard] Anonymous user created successfully')
+      next()
     }
   } else if (isLoginPage && session) {
     // If the user is on the login page but is already logged in (including anonymous),
