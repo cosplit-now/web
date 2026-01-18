@@ -126,9 +126,14 @@ const changeSplitMode = (mode: SplitMode) => {
       memberId: a.memberId
     }))
   } else if (mode === 'ratio') {
-    updatedItem.assignments = updatedItem.assignments.map(a => ({
+    // Automatically distribute percentages evenly
+    const count = updatedItem.assignments.length
+    const equalRatio = count > 0 ? Math.floor(100 / count) : 0
+    const remainder = count > 0 ? 100 - (equalRatio * count) : 0
+    
+    updatedItem.assignments = updatedItem.assignments.map((a, index) => ({
       memberId: a.memberId,
-      ratio: a.ratio || 1
+      ratio: equalRatio + (index === 0 ? remainder : 0)  // Give remainder to first person
     }))
   } else if (mode === 'quantity') {
     updatedItem.assignments = updatedItem.assignments.map(a => ({
@@ -152,14 +157,24 @@ const toggleMemberForItem = (memberId: string) => {
     const newAssignment: ItemAssignment = { memberId }
 
     if (item.splitMode === 'ratio') {
-      // If this is the first person assigned, set to 100%
-      newAssignment.ratio = item.assignments.length === 0 ? 100 : 1
+      newAssignment.ratio = 1  // Temporary value, will be recalculated below
     } else if (item.splitMode === 'quantity') {
       newAssignment.quantity = 1
     }
 
     item.assignments.push(newAssignment)
   }
+
+  // For ratio mode, automatically redistribute percentages evenly
+  if (item.splitMode === 'ratio' && item.assignments.length > 0) {
+    const equalRatio = Math.floor(100 / item.assignments.length)
+    const remainder = 100 - (equalRatio * item.assignments.length)
+    
+    item.assignments.forEach((assignment, idx) => {
+      assignment.ratio = equalRatio + (idx === 0 ? remainder : 0)  // Give remainder to first person
+    })
+  }
+
   updateItem(item)
 }
 
@@ -173,8 +188,8 @@ const updateAssignmentValue = (memberId: string, value: number) => {
   if (item.splitMode === 'ratio') {
     assignment.ratio = Math.max(0, Math.min(100, value))
   } else if (item.splitMode === 'quantity') {
-    const maxQty = item.quantity || 1
-    assignment.quantity = Math.max(1, Math.min(maxQty, Math.floor(value)))
+    // Allow any quantity, calculate share by ratio of quantities
+    assignment.quantity = Math.max(1, Math.floor(value))
   }
   updateItem(item)
 }
@@ -244,6 +259,12 @@ const goToSummary = () => {
 
 // Keyboard navigation
 const handleKeyDown = (event: KeyboardEvent) => {
+  // Don't handle shortcuts if user is typing in an input field
+  const target = event.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+    return
+  }
+
   if (!selectedItemId.value) {
     if (event.key === 'ArrowDown' && items.value.length > 0) {
       event.preventDefault()
@@ -280,16 +301,28 @@ const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && selectedItem.value) {
         event.preventDefault()
         const updatedItem = { ...selectedItem.value }
-        updatedItem.assignments = members.value.map((member, index) => {
-            const newAssignment: ItemAssignment = { memberId: member.id }
-            if (updatedItem.splitMode === 'ratio') {
-              // First person gets 100%, others get 1%
-              newAssignment.ratio = index === 0 ? 100 : 1
-            } else if (updatedItem.splitMode === 'quantity') {
-              newAssignment.quantity = 1
-            }
-            return newAssignment
-        })
+        
+        if (updatedItem.splitMode === 'ratio') {
+          // Automatically distribute percentages evenly
+          const count = members.value.length
+          const equalRatio = Math.floor(100 / count)
+          const remainder = 100 - (equalRatio * count)
+          
+          updatedItem.assignments = members.value.map((member, index) => ({
+            memberId: member.id,
+            ratio: equalRatio + (index === 0 ? remainder : 0)  // Give remainder to first person
+          }))
+        } else if (updatedItem.splitMode === 'quantity') {
+          updatedItem.assignments = members.value.map(member => ({
+            memberId: member.id,
+            quantity: 1
+          }))
+        } else {
+          updatedItem.assignments = members.value.map(member => ({
+            memberId: member.id
+          }))
+        }
+        
         updateItem(updatedItem)
       }
       break
@@ -536,7 +569,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
                         size="sm"
                         @click.stop="changeSplitMode('quantity')"
                         :class="selectedItem?.splitMode === 'quantity' && 'bg-primary text-primary-foreground'"
-                        :disabled="!selectedItem?.quantity"
                       >
                         <Hash class="w-4 h-4 mr-1" />
                         Qty
@@ -619,7 +651,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
                               <Input
                                 type="number"
                                 :min="selectedItem?.splitMode === 'quantity' ? 1 : 0"
-                                :max="selectedItem?.splitMode === 'quantity' ? selectedItem?.quantity : undefined"
                                 :model-value="getMemberAssignmentValue(member.id)"
                                 @update:model-value="(v) => updateAssignmentValue(member.id, Number(v))"
                                 class="w-20 h-8 text-sm"

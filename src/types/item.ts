@@ -49,7 +49,7 @@ export function calculateMemberShare(item: Item, memberId: string): number {
       return totalRatio > 0 ? (actualPrice * assignment.ratio) / totalRatio : 0
 
     case 'quantity':
-      if (!assignment.quantity || !item.quantity) return 0
+      if (!assignment.quantity) return 0
       const totalQuantity = item.assignments.reduce((sum, a) => sum + (a.quantity || 0), 0)
       return totalQuantity > 0 ? (actualPrice * assignment.quantity) / totalQuantity : 0
 
