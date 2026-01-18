@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import type { Split, Receipt, ReceiptItem } from '@/types/split'
+import type { Split, Receipt } from '@/types/split'
 import { saveToStorage, loadFromStorage, storageKeys } from '@/utils/storage'
 
 const currentSplit = ref<Split | null>(null)

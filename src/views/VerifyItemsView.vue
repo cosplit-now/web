@@ -19,7 +19,6 @@ import {
   Hash,
   CheckCircle2
 } from 'lucide-vue-next'
-import { cn } from '@/lib/utils'
 
 const router = useRouter()
 
@@ -77,7 +76,6 @@ const items = ref<OcrItem[]>([
   },
 ])
 
-const receiptImageUrl = ref('/placeholder-receipt.jpg')
 const imageZoom = ref(100)
 const totalTaxFromReceipt = ref(3.18)
 

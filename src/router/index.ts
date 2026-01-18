@@ -65,40 +65,57 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to, from, next) => {
-  // TODO: Temporarily disable auth check until backend is ready
-  // Uncomment the code below when backend authentication is implemented
-
-  /*
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+router.beforeEach(async (to, _from, next) => {
   const isLoginPage = to.name === 'login'
 
+  // Try to get existing session
   let session = null
   try {
-    // We always try to get the session to know the user's state.
     const sessionResponse = await authClient.getSession()
     session = sessionResponse?.data
   } catch (error: any) {
-    console.warn(`[Auth Guard] Could not reach auth server: ${error.message}`)
+    // getSession failed (404 or CORS), but this is OK - we'll try to create anonymous user
+    console.warn(`[Auth Guard] getSession failed: ${error.message}`)
   }
 
-  if (requiresAuth && !session) {
-    // If a route requires auth and there's no session (or server is down),
-    // redirect to the login page.
-    next({ name: 'login' })
+  // If user has no session
+  if (!session) {
+    if (isLoginPage) {
+      // Allow access to login page for users who want to create a real account
+      next()
+      return
+    }
+
+    // For any other route without session, automatically create anonymous user
+    console.info('[Auth Guard] No session found, attempting to create anonymous user...')
+    try {
+      const result = await authClient.signIn.anonymous()
+      if (result.error) {
+        console.error('[Auth Guard] Failed to create anonymous user:', result.error)
+        // If anonymous creation fails, show error and stay on current page
+        alert('無法連接到認證服務器，請稍後再試。\n\nCannot connect to authentication server. Please try again later.')
+        next(false) // Cancel navigation
+      } else {
+        console.info('[Auth Guard] Anonymous user created successfully')
+        // Anonymous user created successfully, proceed to the requested route
+        next()
+      }
+    } catch (error: any) {
+      console.error('[Auth Guard] Failed to create anonymous user:', error)
+      // If anonymous creation fails, show error and stay on current page
+      alert('無法連接到認證服務器，請稍後再試。\n\nCannot connect to authentication server. Please try again later.')
+      next(false) // Cancel navigation
+    }
   } else if (isLoginPage && session) {
-    // If the user is on the login page but is already logged in,
+    // If the user is on the login page but is already logged in (including anonymous),
     // redirect them to the dashboard.
     next({ name: 'dashboard' })
   } else {
     // In all other cases (e.g., public pages, or authenticated user accessing allowed pages),
     // proceed as requested.
+    // Note: Anonymous users are treated as authenticated and can access all pages
     next()
   }
-  */
-
-  // Allow all routes without authentication check (for development)
-  next()
 })
 
 export default router
