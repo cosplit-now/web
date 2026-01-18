@@ -17,10 +17,18 @@ export interface AnalyzeReceiptRequest {
   imageUrl: string
 }
 
+// Receipt status enum matching backend
+export type ReceiptStatus = 
+  | 'uploaded'
+  | 'ocr_processing'
+  | 'ocr_done'
+  | 'ocr_failed'
+  | 'confirmed'
+
 // Receipt upload response
 export interface UploadReceiptResponse {
   id: string
-  status: 'uploaded' | 'processing' | 'completed' | 'failed'
+  status: ReceiptStatus
   imageUrl: string
   ocrResult: any | null
   finalResult: FinalReceiptResult | null
@@ -39,7 +47,7 @@ export interface FinalReceiptResult {
 export interface GetReceiptResponse {
   id: string
   imageUrl: string
-  status: 'uploaded' | 'processing' | 'completed' | 'failed'
+  status: ReceiptStatus
   userId: string
   finalResult: FinalReceiptResult | null
   createdAt: string

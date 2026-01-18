@@ -109,14 +109,14 @@ export function getPublicUrl(key: string): string {
 }
 
 /**
- * 上传收据图片到后端,开始 OCR 处理
- * @param imageKey 图片 key (不包含域名)
- * @returns 收据上传响应,包含 receipt ID
+ * Upload receipt image to backend and start OCR processing
+ * @param imageKey Image key (without domain)
+ * @returns Receipt upload response with receipt ID
  */
 export async function uploadReceipt(
   imageKey: string
 ): Promise<import('@/types/receipt').UploadReceiptResponse> {
-  // 组合成完整的图片 URL
+  // Construct full image URL
   const fullImageUrl = getPublicUrl(imageKey)
 
   const payload: AnalyzeReceiptRequest = {
@@ -128,14 +128,14 @@ export async function uploadReceipt(
   console.log('[API] Full image URL:', fullImageUrl)
   console.log('[API] API endpoint:', `${API_BASE_URL}/receipts`)
 
-  // 获取当前 session（用于调试）
+  // Get current session (for debugging)
   const sessionData = await authClient.getSession()
   console.log('[API] Session data:', sessionData)
   console.log('[API] Has session:', !!sessionData?.data)
 
-  // 如果没有 session，这是后端 CORS 配置问题
+  // If no session, this is a backend CORS configuration issue
   if (!sessionData?.data) {
-    console.error('[API] ⚠️ 没有 session！这是后端 CORS 配置问题')
+    console.error('[API] ⚠️ No session! This is a backend CORS configuration issue')
   }
 
   try {
@@ -144,7 +144,7 @@ export async function uploadReceipt(
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // 发送 cookies
+      credentials: 'include', // Send cookies
       body: JSON.stringify(payload),
     })
 
@@ -166,9 +166,9 @@ export async function uploadReceipt(
         }
       }
 
-      // 401 错误特殊处理
+      // Special handling for 401 errors
       if (response.status === 401) {
-        throw new Error('认证失败：请刷新页面重新登入')
+        throw new Error('Authentication failed. Please refresh the page and log in again.')
       }
 
       throw new Error(errorMessage)
@@ -185,9 +185,9 @@ export async function uploadReceipt(
 }
 
 /**
- * 获取收据处理状态和结果
- * @param receiptId 收据 ID
- * @returns 收据详情
+ * Get receipt processing status and result
+ * @param receiptId Receipt ID
+ * @returns Receipt details
  */
 export async function getReceipt(
   receiptId: string
@@ -228,12 +228,12 @@ export async function getReceipt(
 }
 
 /**
- * 轮询等待收据处理完成
- * @param receiptId 收据 ID
- * @param onProgress 进度回调 (status, progress)
- * @param maxAttempts 最大轮询次数
- * @param interval 轮询间隔(毫秒)
- * @returns 收据项目列表
+ * Poll and wait for receipt processing to complete
+ * @param receiptId Receipt ID
+ * @param onProgress Progress callback (status, progress)
+ * @param maxAttempts Maximum number of polling attempts
+ * @param interval Polling interval (milliseconds)
+ * @returns Receipt items list
  */
 export async function pollReceiptResult(
   receiptId: string,
@@ -248,46 +248,47 @@ export async function pollReceiptResult(
 
     console.log(`[API] Poll attempt ${attempt + 1}/${maxAttempts}, status: ${receipt.status}`)
 
-    // 更新进度
+    // Update progress
     if (onProgress) {
       const progress = Math.min(95, 40 + (attempt / maxAttempts) * 55)
       onProgress(receipt.status, progress)
     }
 
-    if (receipt.status === 'completed' && receipt.finalResult) {
+    // Success: OCR processing completed or confirmed
+    if ((receipt.status === 'ocr_done' || receipt.status === 'confirmed') && receipt.finalResult) {
       console.log('[API] Receipt processing completed!')
       return receipt.finalResult.items
     }
 
-    if (receipt.status === 'failed') {
-      throw new Error('收据处理失败，请重试')
+    // Failed: OCR processing failed
+    if (receipt.status === 'ocr_failed') {
+      throw new Error('Receipt processing failed. Please try again.')
     }
 
-    // 如果还在处理中，等待后继续轮询
-    if (receipt.status === 'uploaded' || receipt.status === 'processing') {
-      await new Promise(resolve => setTimeout(resolve, interval))
-      continue
-    }
+    // Still processing: wait and continue polling
+    // This handles 'uploaded', 'ocr_processing', and any other non-terminal statuses
+    console.log(`[API] Status is '${receipt.status}', waiting ${interval}ms before next poll...`)
+    await new Promise(resolve => setTimeout(resolve, interval))
   }
 
-  throw new Error('收据处理超时，请稍后重试')
+  throw new Error('Receipt processing timeout. Please try again later.')
 }
 
 /**
- * 完整的收据分析流程：上传 + 轮询
- * @param imageKey 图片 key
- * @param onProgress 进度回调
- * @returns 收据项目列表
+ * Complete receipt analysis workflow: upload + polling
+ * @param imageKey Image key
+ * @param onProgress Progress callback
+ * @returns Receipt items list
  */
 export async function analyzeReceipt(
   imageKey: string,
   onProgress?: (status: string, progress: number) => void
 ): Promise<ReceiptItemResponse[]> {
-  // Step 1: 上传收据
+  // Step 1: Upload receipt
   if (onProgress) onProgress('uploading', 20)
   const uploadResponse = await uploadReceipt(imageKey)
 
-  // Step 2: 轮询结果
+  // Step 2: Poll for results
   if (onProgress) onProgress('processing', 40)
   const items = await pollReceiptResult(uploadResponse.id, onProgress)
 
