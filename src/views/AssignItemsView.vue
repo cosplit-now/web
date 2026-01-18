@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Receipt, ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign } from 'lucide-vue-next'
+import { ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign } from 'lucide-vue-next'
 import { type Item, type SplitMode, type ItemAssignment, calculateMemberShare } from '@/types/item'
 import { MEMBER_COLORS } from '@/types/member'
 
@@ -111,10 +111,6 @@ const assignedItemsCount = computed(() =>
 
 const totalAmount = computed(() =>
   items.value.reduce((sum, item) => sum + item.price, 0)
-)
-
-const totalTax = computed(() =>
-  items.value.reduce((sum, item) => sum + (item.taxAmount || 0), 0)
 )
 
 const unassignedAmount = computed(() => {

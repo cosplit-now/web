@@ -27,6 +27,7 @@ const handleSignOut = async () => {
           <div v-if="session.data" class="flex items-center space-x-4">
             <span class="text-sm text-muted-foreground">
               Welcome, {{ session.data.user.name }}
+              <span v-if="session.data.user.isAnonymous" class="text-xs opacity-70">(Guest)</span>
             </span>
             <Button variant="ghost" size="sm" @click="handleSignOut">
               Sign Out

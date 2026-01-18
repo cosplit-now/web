@@ -22,10 +22,6 @@ export function calculateMemberShare(item: Item, memberId: string): number {
   const assignment = item.assignments.find(a => a.memberId === memberId)
   if (!assignment) return 0
 
-  const basePrice = item.hasTax && item.taxAmount
-    ? item.price - item.taxAmount
-    : item.price
-
   switch (item.splitMode) {
     case 'equal':
       return item.price / item.assignments.length

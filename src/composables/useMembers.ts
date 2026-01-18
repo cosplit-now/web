@@ -1,6 +1,5 @@
 import { ref, computed } from 'vue'
 import type { Member } from '@/types/member'
-import { MEMBER_COLORS } from '@/types/member'
 import { saveToStorage, loadFromStorage, storageKeys } from '@/utils/storage'
 import { getColorForIndex } from '@/utils/colors'
 
