@@ -299,14 +299,14 @@ function parseOcrResult(ocrResult: string | OcrResultData | null): OcrResultData
  * @param onProgress Progress callback (status, progress)
  * @param maxAttempts Maximum number of polling attempts
  * @param interval Polling interval (milliseconds)
- * @returns Receipt items list
+ * @returns Receipt result with items and total
  */
 export async function pollReceiptResult(
   receiptId: string,
   onProgress?: (status: string, progress: number) => void,
   maxAttempts: number = 60,
   interval: number = 2000
-): Promise<ReceiptItemResponse[]> {
+): Promise<{ items: ReceiptItemResponse[], total?: number }> {
   console.log('[API] Polling receipt result:', receiptId)
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -325,14 +325,21 @@ export async function pollReceiptResult(
       // Priority 1: Use finalResult if available
       if (receipt.finalResult && receipt.finalResult.items) {
         console.log('[API] Receipt processing completed! Using finalResult.')
-        return receipt.finalResult.items
+        return {
+          items: receipt.finalResult.items,
+          total: receipt.finalResult.total
+        }
       }
       
       // Priority 2: Parse ocrResult if available
       const parsedOcrResult = parseOcrResult(receipt.ocrResult)
       if (parsedOcrResult && parsedOcrResult.items && parsedOcrResult.items.length > 0) {
         console.log('[API] Receipt processing completed! Using ocrResult.')
-        return parsedOcrResult.items
+        console.log('[API] Backend total:', parsedOcrResult.total)
+        return {
+          items: parsedOcrResult.items,
+          total: parsedOcrResult.total
+        }
       }
       
       // If status is done but no data, log warning but continue polling
@@ -362,7 +369,7 @@ export async function pollReceiptResult(
 export async function analyzeReceipt(
   imageKey: string,
   onProgress?: (status: string, progress: number) => void
-): Promise<ReceiptItemResponse[]> {
+): Promise<{ items: ReceiptItemResponse[], total?: number }> {
   // Step 1: Upload receipt
   if (onProgress) onProgress('uploading', 20)
   const uploadResponse = await uploadReceipt(imageKey)
@@ -370,8 +377,10 @@ export async function analyzeReceipt(
 
   // Step 2: Poll for OCR results
   console.log('[API] Starting polling for OCR results...')
-  const items = await pollReceiptResult(uploadResponse.id, onProgress)
+  const result = await pollReceiptResult(uploadResponse.id, onProgress)
   
-  console.log('[API] Receipt analysis completed! Items:', items)
-  return items
+  console.log('[API] Receipt analysis completed!')
+  console.log('[API] Items count:', result.items.length)
+  console.log('[API] Backend total:', result.total)
+  return result
 }

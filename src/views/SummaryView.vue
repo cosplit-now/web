@@ -10,7 +10,7 @@ import { ArrowLeft, Share2, FileText, Save, Check, X } from 'lucide-vue-next'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
 import { useSession } from '@/lib/auth-client'
-import { calculateMemberShare } from '@/types/item'
+import { calculateMemberShare, getItemActualPrice } from '@/types/item'
 import type { Item } from '@/types/item'
 
 const route = useRoute()
@@ -28,7 +28,8 @@ onMounted(() => {
 
 const totalAmount = computed(() => {
   if (!currentSplit.value) return 0
-  return currentSplit.value.items.reduce((sum, item) => sum + item.price + (item.taxAmount || 0), 0)
+  // Use backend total directly to avoid precision errors
+  return currentSplit.value.total || 0
 })
 
 // Get member display name
@@ -58,7 +59,13 @@ const memberSummaries = computed(() => {
       const share = calculateMemberShare(item, memberId)
       if (share > 0) {
         memberItems.push(item)
-        memberTotal += share
+        // Calculate tax share for this item
+        let taxShare = 0
+        if (item.hasTax && item.taxAmount) {
+          const itemActualPrice = getItemActualPrice(item)
+          taxShare = itemActualPrice > 0 ? (share / itemActualPrice) * item.taxAmount : 0
+        }
+        memberTotal += share + taxShare
       }
     })
 
