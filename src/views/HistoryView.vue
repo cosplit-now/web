@@ -1,48 +1,88 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, Search, Calendar, DollarSign, Users } from 'lucide-vue-next'
+import { useSplitData } from '@/composables/useSplitData'
+import { useMembers } from '@/composables/useMembers'
+import { generateSplitName } from '@/utils/split-name'
+import type { Split } from '@/types/split'
 
 const router = useRouter()
 const searchQuery = ref('')
+const { splits } = useSplitData()
+const { getMemberById } = useMembers()
 
-const historyItems = ref([
-  {
-    id: '1',
-    name: 'Lunch @ Cafe',
-    amount: 45.00,
-    members: 2,
-    date: '2 hours ago',
-    status: 'completed'
-  },
-  {
-    id: '2',
-    name: 'Grocery Shopping',
-    amount: 87.50,
-    members: 3,
-    date: 'Jan 15',
-    status: 'completed'
-  },
-  {
-    id: '3',
-    name: 'Restaurant Dinner',
-    amount: 152.00,
-    members: 4,
-    date: 'Jan 12',
-    status: 'completed'
-  },
-  {
-    id: '4',
-    name: 'Coffee Shop',
-    amount: 18.75,
-    members: 2,
-    date: 'Jan 10',
-    status: 'completed'
+// Generate split name based on members
+const getSplitName = (split: Split): string => {
+  return generateSplitName(split, getMemberById)
+}
+
+// Format date
+const formatDate = (date: Date): string => {
+  const now = new Date()
+  const splitDate = new Date(date)
+  const diffMs = now.getTime() - splitDate.getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffHours < 1) {
+    return 'Just now'
+  } else if (diffHours < 24) {
+    return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+  } else if (diffDays === 1) {
+    return 'Yesterday'
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`
+  } else {
+    return splitDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
-])
+}
+
+// Filter splits based on search
+const filteredSplits = computed(() => {
+  if (!searchQuery.value) return splits.value
+
+  const query = searchQuery.value.toLowerCase()
+  return splits.value.filter(split => {
+    const name = getSplitName(split).toLowerCase()
+    return name.includes(query)
+  })
+})
+
+// Group splits by time
+const todaySplits = computed(() => {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  return filteredSplits.value.filter(split => {
+    const splitDate = new Date(split.createdAt)
+    return splitDate >= today
+  })
+})
+
+const thisWeekSplits = computed(() => {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+  
+  return filteredSplits.value.filter(split => {
+    const splitDate = new Date(split.createdAt)
+    return splitDate < today && splitDate >= weekAgo
+  })
+})
+
+const olderSplits = computed(() => {
+  const now = new Date()
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  
+  return filteredSplits.value.filter(split => {
+    const splitDate = new Date(split.createdAt)
+    return splitDate < weekAgo
+  })
+})
 
 const goBack = () => {
   router.push('/')
@@ -94,19 +134,25 @@ const viewDetail = (id: string) => {
       </div>
 
       <!-- History List -->
-      <div class="space-y-6">
+      <div v-if="filteredSplits.length === 0" class="text-center py-12">
+        <p class="text-muted-foreground">No splits found</p>
+      </div>
+
+      <div v-else class="space-y-6">
         <!-- Today Section -->
-        <div>
+        <div v-if="todaySplits.length > 0">
           <h2 class="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Today</h2>
           <div class="space-y-3">
             <Card
+              v-for="split in todaySplits"
+              :key="split.id"
               class="cursor-pointer hover:shadow-md transition-shadow"
-              @click="viewDetail(historyItems[0].id)"
+              @click="viewDetail(split.id)"
             >
               <CardHeader>
-                <CardTitle>{{ historyItems[0].name }}</CardTitle>
+                <CardTitle>{{ getSplitName(split) }}</CardTitle>
                 <CardDescription>
-                  ${{ historyItems[0].amount.toFixed(2) }} • {{ historyItems[0].members }} people • {{ historyItems[0].date }}
+                  ${{ split.total.toFixed(2) }} • {{ split.members.length }} {{ split.members.length === 1 ? 'person' : 'people' }} • {{ formatDate(split.createdAt) }}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -114,19 +160,39 @@ const viewDetail = (id: string) => {
         </div>
 
         <!-- This Week Section -->
-        <div>
+        <div v-if="thisWeekSplits.length > 0">
           <h2 class="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">This Week</h2>
           <div class="space-y-3">
             <Card
-              v-for="item in historyItems.slice(1)"
-              :key="item.id"
+              v-for="split in thisWeekSplits"
+              :key="split.id"
               class="cursor-pointer hover:shadow-md transition-shadow"
-              @click="viewDetail(item.id)"
+              @click="viewDetail(split.id)"
             >
               <CardHeader>
-                <CardTitle>{{ item.name }}</CardTitle>
+                <CardTitle>{{ getSplitName(split) }}</CardTitle>
                 <CardDescription>
-                  ${{ item.amount.toFixed(2) }} • {{ item.members }} people • {{ item.date }}
+                  ${{ split.total.toFixed(2) }} • {{ split.members.length }} {{ split.members.length === 1 ? 'person' : 'people' }} • {{ formatDate(split.createdAt) }}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
+
+        <!-- Older Section -->
+        <div v-if="olderSplits.length > 0">
+          <h2 class="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Older</h2>
+          <div class="space-y-3">
+            <Card
+              v-for="split in olderSplits"
+              :key="split.id"
+              class="cursor-pointer hover:shadow-md transition-shadow"
+              @click="viewDetail(split.id)"
+            >
+              <CardHeader>
+                <CardTitle>{{ getSplitName(split) }}</CardTitle>
+                <CardDescription>
+                  ${{ split.total.toFixed(2) }} • {{ split.members.length }} {{ split.members.length === 1 ? 'person' : 'people' }} • {{ formatDate(split.createdAt) }}
                 </CardDescription>
               </CardHeader>
             </Card>

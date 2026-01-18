@@ -6,7 +6,7 @@
 import { authClient } from './auth-client'
 
 const SESSION_CACHE_KEY = 'cosplit_session_cache'
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
+const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes in milliseconds
 
 interface SessionCache {
   session: any
@@ -18,19 +18,19 @@ interface SessionCache {
  */
 function getCachedSession(): any | null {
   try {
-    const cached = sessionStorage.getItem(SESSION_CACHE_KEY)
+    const cached = localStorage.getItem(SESSION_CACHE_KEY)
     if (!cached) return null
 
     const { session, timestamp }: SessionCache = JSON.parse(cached)
     const now = Date.now()
 
-    // Check if cache is still valid (within 5 minutes)
+    // Check if cache is still valid (within 30 minutes)
     if (now - timestamp < CACHE_DURATION) {
       return session
     }
 
     // Cache expired, remove it
-    sessionStorage.removeItem(SESSION_CACHE_KEY)
+    localStorage.removeItem(SESSION_CACHE_KEY)
     return null
   } catch (error) {
     console.warn('[Session Manager] Failed to read cache:', error)
@@ -47,7 +47,7 @@ function setCachedSession(session: any): void {
       session,
       timestamp: Date.now(),
     }
-    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cache))
+    localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(cache))
   } catch (error) {
     console.warn('[Session Manager] Failed to cache session:', error)
   }
@@ -58,7 +58,7 @@ function setCachedSession(session: any): void {
  */
 export function clearSessionCache(): void {
   try {
-    sessionStorage.removeItem(SESSION_CACHE_KEY)
+    localStorage.removeItem(SESSION_CACHE_KEY)
   } catch (error) {
     console.warn('[Session Manager] Failed to clear cache:', error)
   }
@@ -71,7 +71,7 @@ export function clearSessionCache(): void {
 export async function getCachedOrFetchSession(): Promise<any | null> {
   // Try to get from cache first
   const cached = getCachedSession()
-  if (cached) {
+  if (cached && cached.user) {
     console.log('[Session Manager] Using cached session')
     return cached
   }
@@ -82,11 +82,15 @@ export async function getCachedOrFetchSession(): Promise<any | null> {
     const sessionResponse = await authClient.getSession()
     const session = sessionResponse?.data
 
-    if (session) {
+    // Only cache and return if we have a valid session with a user
+    if (session && session.user) {
+      console.log('[Session Manager] Valid session found, caching it')
       setCachedSession(session)
+      return session
     }
 
-    return session
+    console.log('[Session Manager] No valid session found')
+    return null
   } catch (error: any) {
     console.warn('[Session Manager] Failed to fetch session:', error.message)
     return null

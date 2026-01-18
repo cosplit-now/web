@@ -1,51 +1,79 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { ArrowLeft, Share2, FileText, Save, Check, X } from 'lucide-vue-next'
+import { useSplitData } from '@/composables/useSplitData'
+import { useMembers } from '@/composables/useMembers'
+import { calculateMemberShare } from '@/types/item'
+import type { Member } from '@/types/member'
+import type { Item } from '@/types/item'
 
+const route = useRoute()
 const router = useRouter()
-
-const totalAmount = ref(74.95)
-const memberSummaries = ref([
-  {
-    id: '1',
-    name: 'Alex',
-    amount: 24.50,
-    isPaid: true,
-    items: ['Milk', 'Bread', 'Eggs']
-  },
-  {
-    id: '2',
-    name: 'Sarah',
-    amount: 18.75,
-    isPaid: false,
-    items: ['Cheese', 'Butter']
-  },
-  {
-    id: '3',
-    name: 'Mike',
-    amount: 31.70,
-    isPaid: false,
-    items: ['Chicken', 'Rice', 'Vegetables']
-  }
-])
+const { currentSplit, findSplit, saveCurrentSplit } = useSplitData()
+const { getMemberById } = useMembers()
 
 const expandedMember = ref<string | null>(null)
+
+onMounted(() => {
+  const splitId = route.params.id as string
+  findSplit(splitId)
+})
+
+const totalAmount = computed(() => {
+  if (!currentSplit.value) return 0
+  return currentSplit.value.items.reduce((sum, item) => sum + item.price + (item.taxAmount || 0), 0)
+})
+
+const memberSummaries = computed(() => {
+  if (!currentSplit.value) return []
+  return currentSplit.value.members.map(memberId => {
+    const member = getMemberById(memberId)
+    if (!member) return null
+
+    const memberItems: Item[] = []
+    let memberTotal = 0
+
+    currentSplit.value?.items.forEach(item => {
+      const share = calculateMemberShare(item, memberId)
+      if (share > 0) {
+        memberItems.push(item)
+        memberTotal += share
+      }
+    })
+
+    return {
+      id: member.id,
+      name: member.name,
+      amount: memberTotal,
+      isPaid: false, // This would be part of the state in a real app
+      items: memberItems
+    }
+  }).filter(Boolean) as ({ id: string, name: string, amount: number, isPaid: boolean, items: Item[] }[])
+})
 
 const toggleExpand = (memberId: string) => {
   expandedMember.value = expandedMember.value === memberId ? null : memberId
 }
 
 const goBack = () => {
-  router.push('/assign/temp-id')
+  if (currentSplit.value) {
+    router.push({ name: 'assign', params: { id: currentSplit.value.id } })
+  } else {
+    router.push('/')
+  }
 }
 
 const saveAndFinish = () => {
+  if (currentSplit.value) {
+    currentSplit.value.status = 'completed'
+    saveCurrentSplit()
+  }
   router.push('/')
 }
 </script>
@@ -113,11 +141,11 @@ const saveAndFinish = () => {
 
             <div v-if="expandedMember === member.id" class="mt-3 space-y-2">
               <div
-                v-for="(item, index) in member.items"
-                :key="index"
+                v-for="item in member.items"
+                :key="item.id"
                 class="text-sm text-muted-foreground pl-4"
               >
-                • {{ item }}
+                • {{ item.name }}
               </div>
             </div>
 

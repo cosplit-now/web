@@ -1,41 +1,32 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Plus, History, Receipt, Users, DollarSign, CheckCircle, UserPlus } from 'lucide-vue-next'
 import { useSession } from '@/lib/auth-client'
+import { useSplitData } from '@/composables/useSplitData'
+import { useMembers } from '@/composables/useMembers'
+import { generateSplitName } from '@/utils/split-name'
+import type { Split } from '@/types/split'
 
 const router = useRouter()
 const session = useSession()
+const { monthlyStats, recentSplits } = useSplitData()
+const { getMemberById } = useMembers()
 
 const userName = computed(() => {
   return session.value.data?.user?.name || 'there'
 })
 
-// Mock data for demonstration
-const stats = ref({
-  totalSplits: 12,
-  totalAmount: 456.78,
-  totalItems: 45
-})
+const formatRelativeDate = (date: Date) => {
+  return new Date(date).toLocaleDateString()
+}
 
-const recentSplits = ref([
-  {
-    id: '1',
-    name: 'Grocery Store',
-    amount: 87.50,
-    members: 3,
-    date: '2 days ago'
-  },
-  {
-    id: '2',
-    name: 'Restaurant Dinner',
-    amount: 152.00,
-    members: 4,
-    date: '5 days ago'
-  }
-])
+// Generate split name based on members
+const getSplitName = (split: Split): string => {
+  return generateSplitName(split, getMemberById)
+}
 
 const goToCreate = () => {
   router.push('/create')
@@ -112,21 +103,6 @@ const goToAssign = () => {
         </Card>
       </div>
 
-      <!-- Demo Pages (Development Only) -->
-      <div class="mb-10 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-        <h3 class="font-bold text-sm text-yellow-800 mb-3">🚧 Demo Pages (Development)</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Button variant="outline" @click="goToVerify" class="justify-start">
-            <CheckCircle class="w-4 h-4 mr-2" />
-            Verify Items Demo
-          </Button>
-          <Button variant="outline" @click="goToAssign" class="justify-start">
-            <UserPlus class="w-4 h-4 mr-2" />
-            Assign Items Demo
-          </Button>
-        </div>
-      </div>
-
       <!-- Stats -->
       <div class="mb-10">
         <h2 class="text-2xl font-bold mb-5">This Month</h2>
@@ -138,7 +114,7 @@ const goToAssign = () => {
                   <Receipt class="w-6 h-6 text-primary" />
                 </div>
               </div>
-              <p class="text-3xl font-bold mb-1">{{ stats.totalSplits }}</p>
+              <p class="text-3xl font-bold mb-1">{{ monthlyStats.count }}</p>
               <p class="text-sm text-muted-foreground font-medium">Total Splits</p>
             </CardContent>
           </Card>
@@ -150,7 +126,7 @@ const goToAssign = () => {
                   <DollarSign class="w-6 h-6 text-accent-foreground" />
                 </div>
               </div>
-              <p class="text-3xl font-bold mb-1">${{ stats.totalAmount.toFixed(2) }}</p>
+              <p class="text-3xl font-bold mb-1">${{ monthlyStats.total.toFixed(2) }}</p>
               <p class="text-sm text-muted-foreground font-medium">Total Amount</p>
             </CardContent>
           </Card>
@@ -162,7 +138,7 @@ const goToAssign = () => {
                   <Users class="w-6 h-6 text-secondary-foreground" />
                 </div>
               </div>
-              <p class="text-3xl font-bold mb-1">{{ stats.totalItems }}</p>
+              <p class="text-3xl font-bold mb-1">{{ monthlyStats.items }}</p>
               <p class="text-sm text-muted-foreground font-medium">Items Split</p>
             </CardContent>
           </Card>
@@ -191,14 +167,14 @@ const goToAssign = () => {
                     <Receipt class="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h3 class="font-bold text-lg mb-1">{{ split.name }}</h3>
+                    <h3 class="font-bold text-lg mb-1">{{ getSplitName(split) }}</h3>
                     <p class="text-sm text-muted-foreground">
-                      {{ split.members }} people • {{ split.date }}
+                      {{ split.members.length }} {{ split.members.length === 1 ? 'person' : 'people' }} • {{ formatRelativeDate(split.createdAt) }}
                     </p>
                   </div>
                 </div>
                 <div class="text-right">
-                  <p class="text-2xl font-bold">${{ split.amount.toFixed(2) }}</p>
+                  <p class="text-2xl font-bold">${{ split.total.toFixed(2) }}</p>
                 </div>
               </div>
             </CardContent>

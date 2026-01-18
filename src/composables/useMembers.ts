@@ -5,24 +5,25 @@ import { getColorForIndex } from '@/utils/colors'
 
 const members = ref<Member[]>([])
 
-export function useMembers() {
-  // Load members from storage
-  const loadMembers = () => {
-    const saved = loadFromStorage<Member[]>(storageKeys.MEMBERS)
-    if (saved) {
-      members.value = saved
-    }
+// Load members from storage once
+const loadMembers = () => {
+  const saved = loadFromStorage<Member[]>(storageKeys.MEMBERS)
+  if (saved) {
+    members.value = saved
   }
+}
+loadMembers()
 
+export function useMembers() {
   // Save members to storage
   const saveMembers = () => {
     saveToStorage(storageKeys.MEMBERS, members.value)
   }
 
   // Add a new member
-  const addMember = (name: string, isFrequent: boolean = false) => {
+  const addMember = (name: string, isFrequent: boolean = false, id: string | null = null) => {
     const newMember: Member = {
-      id: crypto.randomUUID(),
+      id: id || crypto.randomUUID(),
       name,
       color: getColorForIndex(members.value.length),
       isFrequent,
@@ -67,9 +68,6 @@ export function useMembers() {
     }
   }
 
-  // Initialize
-  loadMembers()
-
   return {
     members,
     frequentMembers,
@@ -78,7 +76,7 @@ export function useMembers() {
     deleteMember,
     getMemberById,
     toggleFrequent,
-    loadMembers,
+    loadMembers, // still export it in case it's needed manually
     saveMembers
   }
 }

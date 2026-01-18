@@ -3,6 +3,7 @@ import DashboardView from '../views/DashboardView.vue'
 import CreateSplitView from '../views/CreateSplitView.vue'
 import AssignItemsView from '../views/AssignItemsView.vue'
 import VerifyItemsView from '../views/VerifyItemsView.vue'
+import DefineMembersView from '../views/DefineMembersView.vue'
 import SummaryView from '../views/SummaryView.vue'
 import HistoryView from '../views/HistoryView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -46,6 +47,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/define-members/:id',
+      name: 'define-members',
+      component: DefineMembersView,
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/summary/:id',
       name: 'summary',
       component: SummaryView,
@@ -65,11 +72,26 @@ const router = createRouter({
   ],
 })
 
+// Debounce flag and session cache
+let isCreatingAnonymousUser = false
+let lastCheckedSession: any = null
+let lastCheckTime = 0
+const SESSION_CHECK_INTERVAL = 10000 // Check session every 10 seconds at most
+
 router.beforeEach(async (to, _from, next) => {
   const isLoginPage = to.name === 'login'
+  const now = Date.now()
 
-  // Try to get existing session (with caching)
-  const session = await getCachedOrFetchSession()
+  // If we checked session recently (within 10 seconds), reuse the result
+  let session = lastCheckedSession
+  if (!session || (now - lastCheckTime) > SESSION_CHECK_INTERVAL) {
+    // Try to get existing session (with caching)
+    session = await getCachedOrFetchSession()
+    lastCheckedSession = session
+    lastCheckTime = now
+  } else {
+    console.log('[Auth Guard] Using recently checked session')
+  }
 
   // If user has no session
   if (!session) {
@@ -79,9 +101,16 @@ router.beforeEach(async (to, _from, next) => {
       return
     }
 
+    if (isCreatingAnonymousUser) {
+      console.warn('[Auth Guard] Anonymous user creation already in progress. Blocking navigation.')
+      return next(false)
+    }
+
     // For any other route without session, automatically create anonymous user
     console.info('[Auth Guard] No session found, attempting to create anonymous user...')
+    isCreatingAnonymousUser = true
     const result = await createAnonymousUser()
+    isCreatingAnonymousUser = false
 
     if (!result.success) {
       console.error('[Auth Guard] Failed to create anonymous user:', result.error)
@@ -89,6 +118,9 @@ router.beforeEach(async (to, _from, next) => {
       next(false) // Cancel navigation
     } else {
       console.info('[Auth Guard] Anonymous user created successfully')
+      // Update cached session
+      lastCheckedSession = result.session
+      lastCheckTime = Date.now()
       next()
     }
   } else if (isLoginPage && session) {

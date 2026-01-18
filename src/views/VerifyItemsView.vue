@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { useSplitData } from '@/composables/useSplitData'
+import type { Item } from '@/types/item'
 
 import {
   ArrowLeft,
@@ -13,148 +15,86 @@ import {
   Edit,
   Trash2,
   Plus,
-  ZoomIn,
-  ZoomOut,
   DollarSign,
   Hash,
   CheckCircle2
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const route = useRoute()
+const {
+  currentSplit,
+  getOrCreateSplit,
+  saveCurrentSplit,
+  addNewItem,
+  deleteItem,
+  updateItem,
+} = useSplitData()
 
-interface OcrItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  confidence: number // 0-100
-  hasTax: boolean
-  taxAmount?: number
-  isEditing: boolean
-}
-
-// Mock OCR data
-const items = ref<OcrItem[]>([
-  {
-    id: '1',
-    name: 'Organic Milk (1L)',
-    price: 4.99,
-    quantity: 1,
-    confidence: 95,
-    hasTax: true,
-    taxAmount: 0.35,
-    isEditing: false
-  },
-  {
-    id: '2',
-    name: 'Whole Wheat Bread',
-    price: 3.49,
-    quantity: 1,
-    confidence: 88,
-    hasTax: false,
-    isEditing: false
-  },
-  {
-    id: '3',
-    name: 'Free Range Eggs',
-    price: 5.99,
-    quantity: 12,
-    confidence: 65,
-    hasTax: true,
-    taxAmount: 0.42,
-    isEditing: false
-  },
-  {
-    id: '4',
-    name: 'Cheddar Cheese (200g)',
-    price: 7.99,
-    quantity: 1,
-    confidence: 92,
-    hasTax: true,
-    taxAmount: 0.56,
-    isEditing: false
-  },
-])
-
-const imageZoom = ref(100)
-const totalTaxFromReceipt = ref(3.18)
+onMounted(() => {
+  const splitId = route.params.id as string
+  getOrCreateSplit(splitId)
+})
 
 // Computed values
+const items = computed(() => currentSplit.value?.items || [])
 const subtotal = computed(() =>
   items.value.reduce((sum, item) => sum + (item.price * item.quantity), 0)
 )
-
 const totalTax = computed(() =>
   items.value.reduce((sum, item) => sum + (item.taxAmount || 0), 0)
 )
-
 const grandTotal = computed(() => subtotal.value + totalTax.value)
 
-const totalMatch = computed(() =>
-  Math.abs(grandTotal.value - (subtotal.value + totalTaxFromReceipt.value)) < 0.01
-)
+const totalMatch = computed(() => {
+  if (!currentSplit.value) return false
+  const receiptTotal = subtotal.value + (currentSplit.value.totalTaxFromReceipt || 0)
+  return Math.abs(grandTotal.value - receiptTotal) < 0.01
+})
 
 
 // Actions
-const toggleEdit = (item: OcrItem) => {
+const toggleEdit = (item: Item) => {
   item.isEditing = !item.isEditing
 }
 
-const saveItem = (item: OcrItem) => {
+const saveItem = (item: Item) => {
   // Validate item before saving
   if (!item.name.trim()) {
     alert('Item name is required')
     return
   }
-  if (!item.price || item.price <= 0) {
+  if (item.price === null || item.price <= 0) {
     alert('Price must be greater than 0')
     return
   }
-  if (!item.quantity || item.quantity <= 0) {
+  if (item.quantity === null || item.quantity <= 0) {
     alert('Quantity must be at least 1')
     return
   }
-  if (item.hasTax && (!item.taxAmount || item.taxAmount < 0)) {
+  if (item.hasTax && (item.taxAmount === null || item.taxAmount < 0)) {
     alert('Tax amount must be 0 or greater')
     return
   }
 
   item.isEditing = false
+  updateItem(item)
 }
 
-const deleteItem = (id: string) => {
-  const index = items.value.findIndex(item => item.id === id)
-  if (index > -1) {
-    items.value.splice(index, 1)
-  }
+const handleDeleteItem = (id: string) => {
+  deleteItem(id)
 }
 
-const addNewItem = () => {
-  const newItem: OcrItem = {
-    id: Date.now().toString(),
-    name: '',
-    price: 0,
-    quantity: 1,
-    confidence: 100,
-    hasTax: false,
-    isEditing: true
-  }
-  items.value.unshift(newItem)
-}
-
-const zoomIn = () => {
-  imageZoom.value = Math.min(imageZoom.value + 10, 200)
-}
-
-const zoomOut = () => {
-  imageZoom.value = Math.max(imageZoom.value - 10, 50)
+const handleAddNewItem = () => {
+  addNewItem()
 }
 
 const goBack = () => {
   router.push('/create')
 }
 
-const continueToAssign = () => {
+const continueToDefineMembers = () => {
+  if (!currentSplit.value) return
   // Check if there are any items
   if (items.value.length === 0) {
     alert('Please add at least one item before continuing')
@@ -170,7 +110,7 @@ const continueToAssign = () => {
 
   // Check if any items have invalid data
   const hasInvalidItems = items.value.some(item =>
-    !item.name.trim() || !item.price || item.price <= 0 || !item.quantity || item.quantity <= 0
+    !item.name.trim() || item.price === null || item.price <= 0 || item.quantity === null || item.quantity <= 0
   )
   if (hasInvalidItems) {
     alert('Please ensure all items have valid name, price, and quantity')
@@ -184,32 +124,20 @@ const continueToAssign = () => {
     }
   }
 
-  router.push('/assign/temp-id')
+  saveCurrentSplit()
+  router.push({ name: 'define-members', params: { id: currentSplit.value.id } })
 }
 </script>
 
 <template>
   <div class="min-h-screen bg-background">
     <!-- Header -->
-    <header class="border-b border-border/40 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-      <div class="container mx-auto px-6 py-5">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <Button variant="ghost" size="icon" @click="goBack">
-              <ArrowLeft class="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 class="text-2xl font-bold tracking-tight">Verify Receipt Items</h1>
-              <p class="text-xs text-muted-foreground">Review and correct OCR results</p>
-            </div>
-          </div>
-          <Button
-            size="lg"
-            @click="continueToAssign"
-          >
-            Continue to Assign
-          </Button>
-        </div>
+    <header class="border-b">
+      <div class="container mx-auto px-4 py-4 flex items-center gap-4">
+        <Button variant="ghost" size="icon" @click="goBack">
+          <ArrowLeft class="w-5 h-5" />
+        </Button>
+        <h1 class="text-xl font-semibold">Verify Receipt Items</h1>
       </div>
     </header>
 
@@ -237,43 +165,12 @@ const continueToAssign = () => {
         </CardContent>
       </Card>
 
-      <!-- Two Column Layout -->
-      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <!-- Left: Receipt Image (2/5 width) -->
-        <div class="lg:col-span-2">
-          <Card class="sticky top-24">
-            <CardContent class="p-6">
-              <div class="flex items-center justify-between mb-4">
-                <h2 class="text-xl font-bold">Receipt Image</h2>
-                <div class="flex items-center gap-2">
-                  <Button variant="outline" size="icon" @click="zoomOut">
-                    <ZoomOut class="w-4 h-4" />
-                  </Button>
-                  <span class="text-sm font-medium">{{ imageZoom }}%</span>
-                  <Button variant="outline" size="icon" @click="zoomIn">
-                    <ZoomIn class="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div class="border rounded-lg overflow-hidden bg-muted/20">
-                <div class="flex items-center justify-center p-8">
-                  <div class="text-center text-muted-foreground">
-                    <p class="text-sm">Receipt image preview</p>
-                    <p class="text-xs mt-2">Zoom: {{ imageZoom }}%</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <!-- Right: Items List (3/5 width) -->
-        <div class="lg:col-span-3 space-y-4">
+      <!-- Items List -->
+      <div class="space-y-4">
           <!-- Action Bar -->
           <div class="flex items-center justify-between">
             <h2 class="text-xl font-bold">Recognized Items</h2>
-            <Button variant="outline" @click="addNewItem">
+            <Button variant="outline" @click="handleAddNewItem">
               <Plus class="w-4 h-4 mr-2" />
               Add Item
             </Button>
@@ -397,7 +294,7 @@ const continueToAssign = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        @click="deleteItem(item.id)"
+                        @click="handleDeleteItem(item.id)"
                       >
                         <Trash2 class="w-4 h-4 text-destructive" />
                       </Button>
@@ -420,7 +317,7 @@ const continueToAssign = () => {
                 <div class="flex justify-between items-center">
                   <div class="flex items-center gap-2">
                     <span class="text-muted-foreground">Tax</span>
-                    <Badge variant="outline" class="text-xs">From receipt: ${{ totalTaxFromReceipt.toFixed(2) }}</Badge>
+                    <Badge v-if="currentSplit" variant="outline" class="text-xs">From receipt: ${{ currentSplit.totalTaxFromReceipt.toFixed(2) }}</Badge>
                   </div>
                   <span class="text-xl font-bold">${{ totalTax.toFixed(2) }}</span>
                 </div>
@@ -433,15 +330,21 @@ const continueToAssign = () => {
                     <AlertTriangle v-else class="w-5 h-5 text-accent-foreground" />
                   </div>
                 </div>
-                <div v-if="!totalMatch" class="p-3 rounded-lg bg-accent/20 border border-accent/40">
+                <div v-if="!totalMatch && currentSplit" class="p-3 rounded-lg bg-accent/20 border border-accent/40">
                   <p class="text-sm text-accent-foreground">
-                    ⚠️ Total doesn't match. Difference: ${{ Math.abs(grandTotal - (subtotal + totalTaxFromReceipt)).toFixed(2) }}
+                    ⚠️ Total doesn't match. Difference: ${{ Math.abs(grandTotal - (subtotal + currentSplit.totalTaxFromReceipt)).toFixed(2) }}
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
+      </div>
+
+      <!-- Navigation -->
+      <div class="flex justify-end mt-8">
+        <Button @click="continueToDefineMembers">
+          Continue to Define Members
+        </Button>
       </div>
     </main>
   </div>

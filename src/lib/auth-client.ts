@@ -10,7 +10,11 @@ export const authClient = createAuthClient({
     baseURL: "https://cosplit-api.xinqi.mu", // <-- 請修改此處
     plugins: [
         anonymousClient()
-    ]
+    ],
+    // 確保 credentials 被正確發送，讓 cookie 能正常工作
+    fetchOptions: {
+        credentials: 'include',
+    }
 })
 
 /**

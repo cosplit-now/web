@@ -1,13 +1,4 @@
-export interface ReceiptItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  subtotal: number
-  assignedTo: string[] // Member IDs
-  isShared: boolean
-  sharedCount?: number
-}
+import type { Item } from './item'
 
 export interface TaxInfo {
   gst?: number
@@ -16,24 +7,14 @@ export interface TaxInfo {
   total: number
 }
 
-export interface Receipt {
-  id: string
-  storeName?: string
-  date: Date
-  region: string
-  items: ReceiptItem[]
-  subtotal: number
-  tax: TaxInfo
-  total: number
-  imageUrl?: string
-  discount?: number
-  tip?: number
-  extraFees?: number
-}
-
 export interface Split {
   id: string
-  receipt: Receipt
+  name: string
+  imageKey?: string
+  items: Item[]
+  subtotal: number
+  totalTaxFromReceipt: number,
+  total: number
   members: string[] // Member IDs
   payer: string // Member ID
   createdAt: Date
@@ -43,7 +24,7 @@ export interface Split {
 
 export interface MemberTotal {
   memberId: string
-  items: ReceiptItem[]
+  items: Item[]
   subtotal: number
   tax: number
   total: number
@@ -55,3 +36,4 @@ export interface SplitSummary {
   memberTotals: MemberTotal[]
   totalAmount: number
 }
+

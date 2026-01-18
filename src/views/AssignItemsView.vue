@@ -1,112 +1,48 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign } from 'lucide-vue-next'
+import { ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign, RotateCcw } from 'lucide-vue-next'
 import { type Item, type SplitMode, type ItemAssignment, calculateMemberShare } from '@/types/item'
-import { MEMBER_COLORS } from '@/types/member'
+import { useSplitData } from '@/composables/useSplitData'
+import { useMembers } from '@/composables/useMembers'
 
+const route = useRoute()
 const router = useRouter()
-
-interface Member {
-  id: string
-  name: string
-  color: string
-}
-
-// Mock data
-const items = ref<Item[]>([
-  {
-    id: '1',
-    name: 'Organic Milk (1L)',
-    price: 4.99,
-    hasTax: true,
-    taxAmount: 0.35,
-    splitMode: 'equal',
-    assignments: []
-  },
-  {
-    id: '2',
-    name: 'Whole Wheat Bread',
-    price: 3.49,
-    hasTax: false,
-    splitMode: 'equal',
-    assignments: []
-  },
-  {
-    id: '3',
-    name: 'Free Range Eggs (12)',
-    price: 5.99,
-    quantity: 12,
-    hasTax: true,
-    taxAmount: 0.42,
-    splitMode: 'quantity',
-    assignments: []
-  },
-  {
-    id: '4',
-    name: 'Cheddar Cheese (200g)',
-    price: 7.99,
-    hasTax: true,
-    taxAmount: 0.56,
-    splitMode: 'equal',
-    assignments: []
-  },
-  {
-    id: '5',
-    name: 'Fresh Salmon (500g)',
-    price: 18.50,
-    hasTax: true,
-    taxAmount: 1.30,
-    splitMode: 'ratio',
-    assignments: []
-  },
-  {
-    id: '6',
-    name: 'Greek Yogurt',
-    price: 6.29,
-    hasTax: false,
-    splitMode: 'equal',
-    assignments: []
-  },
-  {
-    id: '7',
-    name: 'Avocado (3)',
-    price: 4.50,
-    quantity: 3,
-    hasTax: false,
-    splitMode: 'quantity',
-    assignments: []
-  },
-  {
-    id: '8',
-    name: 'Cherry Tomatoes',
-    price: 3.99,
-    hasTax: false,
-    splitMode: 'equal',
-    assignments: []
-  },
-])
-
-const members = ref<Member[]>([
-  { id: '1', name: 'Alex', color: MEMBER_COLORS[0] },
-  { id: '2', name: 'Sarah', color: MEMBER_COLORS[1] },
-  { id: '3', name: 'Mike', color: MEMBER_COLORS[2] },
-])
+const { currentSplit, findSplit, saveCurrentSplit, updateItem } = useSplitData()
+const { members: allMembers, getMemberById } = useMembers()
 
 const selectedItemId = ref<string | null>(null)
 
+onMounted(() => {
+  const splitId = route.params.id as string
+  findSplit(splitId)
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
+})
+
 // Computed values
+const items = computed(() => currentSplit.value?.items || [])
+const members = computed(() => {
+  if (!currentSplit.value) return []
+  return currentSplit.value.members
+    .map(id => getMemberById(id))
+    .filter((member) => member !== null && member !== undefined)
+})
+
 const selectedItem = computed(() =>
   items.value.find(item => item.id === selectedItemId.value)
 )
 
 const assignedItemsCount = computed(() =>
-  items.value.filter(item => item.assignments.length > 0).length
+  items.value.filter(item => item.assignments && item.assignments.length > 0).length
 )
 
 const totalAmount = computed(() =>
@@ -115,13 +51,13 @@ const totalAmount = computed(() =>
 
 const unassignedAmount = computed(() => {
   const assigned = items.value
-    .filter(item => item.assignments.length > 0)
+    .filter(item => item.assignments && item.assignments.length > 0)
     .reduce((sum, item) => sum + item.price, 0)
   return totalAmount.value - assigned
 })
 
 const progressPercentage = computed(() =>
-  (assignedItemsCount.value / items.value.length) * 100
+  items.value.length > 0 ? (assignedItemsCount.value / items.value.length) * 100 : 0
 )
 
 // Member totals
@@ -134,25 +70,27 @@ const getMemberTotal = (memberId: string) => {
 // Item states
 const getItemState = (item: Item) => {
   if (item.id === selectedItemId.value) return 'selected'
-  if (item.assignments.length > 0) return 'assigned'
+  if (item.assignments && item.assignments.length > 0) return 'assigned'
   return 'unassigned'
 }
 
 // Get split mode icon
-const getSplitModeIcon = (mode: SplitMode) => {
+const getSplitModeIcon = (mode?: SplitMode) => {
   switch (mode) {
     case 'equal': return Users
     case 'ratio': return Percent
     case 'quantity': return Hash
+    default: return Users // Default to equal split icon
   }
 }
 
 // Get split mode label
-const getSplitModeLabel = (mode: SplitMode) => {
+const getSplitModeLabel = (mode?: SplitMode) => {
   switch (mode) {
     case 'equal': return 'Equal Split'
     case 'ratio': return 'By Ratio'
     case 'quantity': return 'By Quantity'
+    default: return 'Equal Split' // Default label
   }
 }
 
@@ -163,30 +101,33 @@ const selectItem = (itemId: string) => {
 
 const changeSplitMode = (mode: SplitMode) => {
   if (!selectedItem.value) return
-  selectedItem.value.splitMode = mode
+  const updatedItem = { ...selectedItem.value, splitMode: mode }
 
   // Reset assignments when changing mode
+  if (!updatedItem.assignments) updatedItem.assignments = []
   if (mode === 'equal') {
-    selectedItem.value.assignments = selectedItem.value.assignments.map(a => ({
+    updatedItem.assignments = updatedItem.assignments.map(a => ({
       memberId: a.memberId
     }))
   } else if (mode === 'ratio') {
-    selectedItem.value.assignments = selectedItem.value.assignments.map(a => ({
+    updatedItem.assignments = updatedItem.assignments.map(a => ({
       memberId: a.memberId,
-      ratio: 1
+      ratio: a.ratio || 1
     }))
   } else if (mode === 'quantity') {
-    selectedItem.value.assignments = selectedItem.value.assignments.map(a => ({
+    updatedItem.assignments = updatedItem.assignments.map(a => ({
       memberId: a.memberId,
-      quantity: 1
+      quantity: a.quantity || 1
     }))
   }
+  updateItem(updatedItem)
 }
 
 const toggleMemberForItem = (memberId: string) => {
   if (!selectedItem.value) return
+  const item = { ...selectedItem.value }
+  if (!item.assignments) item.assignments = []
 
-  const item = selectedItem.value
   const index = item.assignments.findIndex(a => a.memberId === memberId)
 
   if (index > -1) {
@@ -194,88 +135,97 @@ const toggleMemberForItem = (memberId: string) => {
   } else {
     const newAssignment: ItemAssignment = { memberId }
 
-    if (item.splitMode === 'ratio') {
-      newAssignment.ratio = 1
-    } else if (item.splitMode === 'quantity') {
-      newAssignment.quantity = 1
-    }
+    if (item.splitMode === 'ratio') newAssignment.ratio = 1
+    else if (item.splitMode === 'quantity') newAssignment.quantity = 1
 
     item.assignments.push(newAssignment)
   }
+  updateItem(item)
 }
 
 const updateAssignmentValue = (memberId: string, value: number) => {
-  if (!selectedItem.value) return
+  if (!selectedItem.value || !selectedItem.value.assignments) return
 
-  const assignment = selectedItem.value.assignments.find(a => a.memberId === memberId)
+  const item = { ...selectedItem.value }
+  const assignment = item.assignments.find(a => a.memberId === memberId)
   if (!assignment) return
 
-  // Validate input based on split mode
-  if (selectedItem.value.splitMode === 'ratio') {
-    // Ratio should be between 0 and 100
-    const validValue = Math.max(0, Math.min(100, value))
-    assignment.ratio = validValue
-  } else if (selectedItem.value.splitMode === 'quantity') {
-    // Quantity should be at least 1 and not exceed item quantity
-    const maxQty = selectedItem.value.quantity || 1
-    const validValue = Math.max(1, Math.min(maxQty, Math.floor(value)))
-    assignment.quantity = validValue
+  if (item.splitMode === 'ratio') {
+    assignment.ratio = Math.max(0, Math.min(100, value))
+  } else if (item.splitMode === 'quantity') {
+    const maxQty = item.quantity || 1
+    assignment.quantity = Math.max(1, Math.min(maxQty, Math.floor(value)))
   }
+  updateItem(item)
 }
 
 const isMemberAssignedToItem = (itemId: string, memberId: string) => {
   const item = items.value.find(i => i.id === itemId)
-  return item?.assignments.some(a => a.memberId === memberId) || false
+  return item?.assignments?.some(a => a.memberId === memberId) || false
 }
 
 const getMemberAssignmentValue = (memberId: string): number => {
-  if (!selectedItem.value) return 0
+  if (!selectedItem.value || !selectedItem.value.assignments) return 0
 
   const assignment = selectedItem.value.assignments.find(a => a.memberId === memberId)
   if (!assignment) return 0
 
-  if (selectedItem.value.splitMode === 'ratio') {
-    return assignment.ratio || 0
-  } else if (selectedItem.value.splitMode === 'quantity') {
-    return assignment.quantity || 0
-  }
+  if (selectedItem.value.splitMode === 'ratio') return assignment.ratio || 0
+  if (selectedItem.value.splitMode === 'quantity') return assignment.quantity || 0
 
   return 0
 }
 
 const splitAllEvenly = () => {
   items.value.forEach(item => {
-    item.splitMode = 'equal'
-    item.assignments = members.value.map(m => ({ memberId: m.id }))
+    const updatedItem = { ...item }
+    updatedItem.splitMode = 'equal'
+    updatedItem.assignments = members.value.map(m => ({ memberId: m.id }))
+    updateItem(updatedItem)
+  })
+  selectedItemId.value = null
+}
+
+const resetAllAssignments = () => {
+  items.value.forEach(item => {
+    const updatedItem = { ...item }
+    updatedItem.assignments = []
+    updateItem(updatedItem)
   })
   selectedItemId.value = null
 }
 
 const toggleTax = () => {
   if (!selectedItem.value) return
-
-  selectedItem.value.hasTax = !selectedItem.value.hasTax
-  if (!selectedItem.value.hasTax) {
-    selectedItem.value.taxAmount = undefined
+  const updatedItem = { ...selectedItem.value }
+  updatedItem.hasTax = !updatedItem.hasTax
+  if (!updatedItem.hasTax) {
+    updatedItem.taxAmount = undefined
   } else {
-    // Auto-calculate 7% tax
-    selectedItem.value.taxAmount = selectedItem.value.price * 0.07
+    updatedItem.taxAmount = updatedItem.price * 0.07 // Auto-calculate 7% tax
   }
+  updateItem(updatedItem)
 }
 
 const goBack = () => {
-  router.push('/create')
+  if (currentSplit.value) {
+    router.push({ name: 'define-members', params: { id: currentSplit.value.id } })
+  } else {
+    router.push('/create')
+  }
 }
 
 const goToSummary = () => {
-  router.push('/summary/temp-id')
+  saveCurrentSplit()
+  if (currentSplit.value) {
+    router.push({ name: 'summary', params: { id: currentSplit.value.id } })
+  }
 }
 
 // Keyboard navigation
 const handleKeyDown = (event: KeyboardEvent) => {
-  // If no item is selected, navigate items list
   if (!selectedItemId.value) {
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown' && items.value.length > 0) {
       event.preventDefault()
       selectItem(items.value[0].id)
     }
@@ -287,79 +237,40 @@ const handleKeyDown = (event: KeyboardEvent) => {
   switch (event.key) {
     case 'ArrowDown':
       event.preventDefault()
-      if (currentIndex < items.value.length - 1) {
-        selectItem(items.value[currentIndex + 1].id)
-      }
+      if (currentIndex < items.value.length - 1) selectItem(items.value[currentIndex + 1].id)
       break
-
     case 'ArrowUp':
       event.preventDefault()
-      if (currentIndex > 0) {
-        selectItem(items.value[currentIndex - 1].id)
-      }
+      if (currentIndex > 0) selectItem(items.value[currentIndex - 1].id)
       break
-
     case 'Enter':
       event.preventDefault()
-      // Toggle first member when Enter is pressed
-      if (members.value.length > 0) {
-        toggleMemberForItem(members.value[0].id)
-      }
+      if (members.value.length > 0) toggleMemberForItem(members.value[0].id)
       break
-
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
+    case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8':
       event.preventDefault()
       const memberIndex = parseInt(event.key) - 1
-      if (memberIndex < members.value.length) {
-        toggleMemberForItem(members.value[memberIndex].id)
-      }
+      if (memberIndex < members.value.length) toggleMemberForItem(members.value[memberIndex].id)
       break
-
     case 'Escape':
       event.preventDefault()
       selectedItemId.value = null
       break
-
     case 'a':
-      if (event.ctrlKey || event.metaKey) {
+      if ((event.ctrlKey || event.metaKey) && selectedItem.value) {
         event.preventDefault()
-        // Select all members for current item
-        if (selectedItem.value) {
-          // Clear existing assignments
-          selectedItem.value.assignments = []
-
-          // Add all members to assignments
-          members.value.forEach(member => {
+        const updatedItem = { ...selectedItem.value }
+        updatedItem.assignments = members.value.map(member => {
             const newAssignment: ItemAssignment = { memberId: member.id }
-
-            if (selectedItem.value!.splitMode === 'ratio') {
-              newAssignment.ratio = 1
-            } else if (selectedItem.value!.splitMode === 'quantity') {
-              newAssignment.quantity = 1
-            }
-
-            selectedItem.value!.assignments.push(newAssignment)
-          })
-        }
+            if (updatedItem.splitMode === 'ratio') newAssignment.ratio = 1
+            else if (updatedItem.splitMode === 'quantity') newAssignment.quantity = 1
+            return newAssignment
+        })
+        updateItem(updatedItem)
       }
       break
   }
 }
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeyDown)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown)
-})
 </script>
 
 <template>
@@ -376,18 +287,11 @@ onUnmounted(() => {
             <p class="text-xs text-muted-foreground">Select items and assign to members</p>
           </div>
         </div>
-        <Button
-          size="lg"
-          @click="goToSummary"
-          :disabled="assignedItemsCount === 0"
-        >
-          Continue to Summary
-        </Button>
       </div>
     </header>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-6 py-8 max-w-7xl">
+    <main class="container mx-auto px-6 py-8 max-w-7xl pb-32">
       <!-- Progress Overview -->
       <Card class="mb-8 border-l-4 border-l-primary/40">
         <CardContent class="p-6">
@@ -421,14 +325,25 @@ onUnmounted(() => {
         <div class="lg:col-span-3">
           <div class="mb-4 flex items-center justify-between">
             <h2 class="text-xl font-bold">Receipt Items</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              @click="splitAllEvenly"
-            >
-              <Users class="w-4 h-4 mr-2" />
-              Split All Evenly
-            </Button>
+            <div class="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                @click="resetAllAssignments"
+                class="text-muted-foreground hover:text-destructive hover:border-destructive"
+              >
+                <RotateCcw class="w-4 h-4 mr-2" />
+                Reset All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                @click="splitAllEvenly"
+              >
+                <Users class="w-4 h-4 mr-2" />
+                Split All Evenly
+              </Button>
+            </div>
           </div>
 
           <div class="space-y-2">
@@ -467,20 +382,20 @@ onUnmounted(() => {
                       <div class="flex items-center gap-2 flex-wrap">
                         <p class="text-xl font-bold text-primary">${{ item.price.toFixed(2) }}</p>
                         <Badge
-                          v-if="item.hasTax"
+                          v-if="item.hasTax && item.taxAmount"
                           variant="secondary"
                           class="text-xs"
                         >
                           <DollarSign class="w-3 h-3 mr-1" />
-                          Tax +${{ item.taxAmount?.toFixed(2) }}
+                          Tax +${{ item.taxAmount.toFixed(2) }}
                         </Badge>
                         <Badge
-                          v-if="item.quantity"
+                          v-if="item.quantity && item.quantity > 1"
                           variant="outline"
                           class="text-xs border-primary/40"
                         >
                           <Hash class="w-3 h-3 mr-1" />
-                          {{ item.quantity }} items
+                          {{ item.quantity }} {{ item.quantity === 1 ? 'item' : 'items' }}
                         </Badge>
                         <Badge variant="secondary" class="text-xs">
                           <component :is="getSplitModeIcon(item.splitMode)" class="w-3 h-3 mr-1" />
@@ -492,7 +407,7 @@ onUnmounted(() => {
 
                   <!-- Member Badges -->
                   <div class="flex items-center gap-2">
-                    <div v-if="item.assignments.length === 0" class="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div v-if="!item.assignments || item.assignments.length === 0" class="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>Click to assign</span>
                     </div>
                     <div v-else class="flex gap-1 flex-wrap justify-end max-w-xs">
@@ -626,7 +541,7 @@ onUnmounted(() => {
                             <div class="flex-1">
                               <p class="font-bold text-lg">{{ member.name }}</p>
                               <p class="text-sm text-muted-foreground">
-                                This item: ${{ calculateMemberShare(selectedItem!, member.id).toFixed(2) }}
+                                This item: ${{ selectedItem ? calculateMemberShare(selectedItem, member.id).toFixed(2) : '0.00' }}
                               </p>
                             </div>
                             <div
@@ -736,5 +651,18 @@ onUnmounted(() => {
         </div>
       </div>
     </main>
+    <!-- Footer -->
+    <footer class="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-sm border-t border-border/40 z-10">
+      <div class="container mx-auto px-6 py-4 flex justify-end">
+        <Button
+          size="lg"
+          @click="goToSummary"
+          :disabled="assignedItemsCount === 0"
+        >
+          Continue to Summary
+        </Button>
+      </div>
+    </footer>
   </div>
 </template>
+
