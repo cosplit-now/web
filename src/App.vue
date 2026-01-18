@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import 'vue-sonner/style.css'
 import { RouterView, useRouter } from 'vue-router'
-import { useSession, signOut } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth-client'
+import { signOutAndClearCache } from '@/lib/session-manager'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -9,7 +10,7 @@ const session = useSession()
 const router = useRouter()
 
 const handleSignOut = async () => {
-  await signOut()
+  await signOutAndClearCache()
   router.push('/login')
 }
 </script>
