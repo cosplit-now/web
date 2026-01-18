@@ -48,48 +48,57 @@ const continueToVerify = async () => {
   analysisProgress.value = 0
 
   try {
-    // Step 1: Uploading
-    analysisStep.value = 'Uploading receipt...'
-    analysisProgress.value = 20
-    await new Promise(resolve => setTimeout(resolve, 500))
+    // Call the OCR API with progress callback
+    const receiptItems = await analyzeReceipt(
+      imageKey.value,
+      (status: string, progress: number) => {
+        // Map API status to user-friendly messages
+        switch (status) {
+          case 'uploading':
+            analysisStep.value = 'Uploading receipt...'
+            break
+          case 'uploaded':
+            analysisStep.value = 'Receipt uploaded, processing...'
+            break
+          case 'processing':
+            analysisStep.value = 'Scanning and extracting items...'
+            break
+          case 'completed':
+            analysisStep.value = 'Processing complete!'
+            break
+          default:
+            analysisStep.value = 'Processing...'
+        }
+        analysisProgress.value = progress
+      }
+    )
 
-    // Step 2: Calling OCR API
-    analysisStep.value = 'Scanning text...'
-    analysisProgress.value = 40
-    
-    // Call the OCR API
-    const receiptItems = await analyzeReceipt(imageKey.value)
-    
     // Step 3: Processing results
     analysisStep.value = 'Extracting items...'
-    analysisProgress.value = 70
+    analysisProgress.value = 95
     await new Promise(resolve => setTimeout(resolve, 300))
 
     // Convert backend items to our Item format
     const items = convertReceiptItems(receiptItems)
-    
+
     // Calculate totals
     const totals = calculateReceiptTotal(receiptItems)
-    
-    analysisStep.value = 'Processing data...'
-    analysisProgress.value = 90
-    await new Promise(resolve => setTimeout(resolve, 300))
 
     // Create split with real OCR data
     const newSplit = createSplit({ imageKey: imageKey.value })
-    
+
     // Replace mock items with real OCR items
     newSplit.items = items
     newSplit.subtotal = totals.subtotal
     newSplit.totalTaxFromReceipt = totals.totalTax
     newSplit.total = totals.grandTotal
-    
+
     saveCurrentSplit()
 
     // Complete
     analysisProgress.value = 100
     analysisStep.value = 'Complete!'
-    
+
     // Wait a bit to show completion
     await new Promise(resolve => setTimeout(resolve, 500))
 
