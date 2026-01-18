@@ -228,6 +228,46 @@ export async function getReceipt(
 }
 
 /**
+ * Get all receipts for the current user
+ * @returns Array of receipts
+ */
+export async function getAllReceipts(): Promise<import('@/types/receipt').GetReceiptResponse[]> {
+  console.log('[API] Getting all receipts')
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/receipts`, {
+      method: 'GET',
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      let errorMessage = `Failed to get receipts: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        }
+      } catch {
+        const errorText = await response.text()
+        if (errorText) {
+          errorMessage += ` - ${errorText}`
+        }
+      }
+
+      throw new Error(errorMessage)
+    }
+
+    const data = await response.json()
+    console.log('[API] Get all receipts response:', data)
+
+    return data
+  } catch (error: any) {
+    console.error('[API] Error getting receipts:', error)
+    throw error
+  }
+}
+
+/**
  * Poll and wait for receipt processing to complete
  * @param receiptId Receipt ID
  * @param onProgress Progress callback (status, progress)

@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, History, Receipt, Users, DollarSign } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
+import { Plus, History, Receipt, Users, DollarSign, Image as ImageIcon, Loader2 } from 'lucide-vue-next'
 import { useSession } from '@/lib/auth-client'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
 import { generateSplitName } from '@/utils/split-name'
+import { getAllReceipts, getPublicUrl } from '@/utils/api'
 import type { Split } from '@/types/split'
+import type { GetReceiptResponse } from '@/types/receipt'
 
 const router = useRouter()
 const session = useSession()
 const { monthlyStats, recentSplits } = useSplitData()
 const { getMemberById } = useMembers()
+
+// Receipts state
+const receipts = ref<GetReceiptResponse[]>([])
+const isLoadingReceipts = ref(false)
 
 const userName = computed(() => {
   return session.value.data?.user?.name || 'there'
@@ -35,6 +42,57 @@ const goToCreate = () => {
 const goToHistory = () => {
   router.push('/history')
 }
+
+// Load receipts
+const loadReceipts = async () => {
+  isLoadingReceipts.value = true
+  try {
+    receipts.value = await getAllReceipts()
+    console.log('[Dashboard] Loaded receipts:', receipts.value)
+  } catch (error: any) {
+    console.error('[Dashboard] Error loading receipts:', error)
+  } finally {
+    isLoadingReceipts.value = false
+  }
+}
+
+// Get status badge variant
+const getStatusVariant = (status: string) => {
+  switch (status) {
+    case 'ocr_done':
+    case 'confirmed':
+      return 'default'
+    case 'ocr_processing':
+    case 'uploaded':
+      return 'secondary'
+    case 'ocr_failed':
+      return 'destructive'
+    default:
+      return 'outline'
+  }
+}
+
+// Get status display text
+const getStatusText = (status: string) => {
+  switch (status) {
+    case 'uploaded':
+      return 'Uploaded'
+    case 'ocr_processing':
+      return 'Processing'
+    case 'ocr_done':
+      return 'Ready'
+    case 'ocr_failed':
+      return 'Failed'
+    case 'confirmed':
+      return 'Confirmed'
+    default:
+      return status
+  }
+}
+
+onMounted(() => {
+  loadReceipts()
+})
 </script>
 
 <template>
@@ -132,6 +190,81 @@ const goToHistory = () => {
               </div>
               <p class="text-3xl font-bold mb-1">{{ monthlyStats.items }}</p>
               <p class="text-sm text-muted-foreground font-medium">Items Split</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <!-- Recent Receipts -->
+      <div class="mb-10">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="text-2xl font-bold">Recent Receipts</h2>
+          <Button v-if="receipts.length > 0" variant="ghost" size="sm" @click="goToCreate">
+            Upload New
+          </Button>
+        </div>
+        
+        <!-- Loading State -->
+        <div v-if="isLoadingReceipts" class="flex items-center justify-center py-12">
+          <Loader2 class="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+
+        <!-- Empty State -->
+        <Card v-else-if="receipts.length === 0" class="border-dashed">
+          <CardContent class="p-12 text-center">
+            <div class="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
+              <ImageIcon class="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 class="font-semibold text-lg mb-2">No receipts yet</h3>
+            <p class="text-muted-foreground mb-6">Upload your first receipt to get started</p>
+            <Button @click="goToCreate">
+              <Plus class="w-4 h-4 mr-2" />
+              Upload Receipt
+            </Button>
+          </CardContent>
+        </Card>
+
+        <!-- Receipts List -->
+        <div v-else class="space-y-3">
+          <Card
+            v-for="receipt in receipts.slice(0, 5)"
+            :key="receipt.id"
+            class="cursor-pointer hover:shadow-lg hover:border-primary/20 transition-all duration-200"
+          >
+            <CardContent class="p-6">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                  <!-- Receipt Image Thumbnail -->
+                  <div class="w-16 h-16 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+                    <img
+                      :src="getPublicUrl(receipt.imageUrl)"
+                      :alt="'Receipt ' + receipt.id"
+                      class="w-full h-full object-cover"
+                      @error="(e: any) => e.target.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2264%22 height=%2264%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%23f0f0f0%22/%3E%3C/svg%3E'"
+                    />
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-3 mb-2">
+                      <h3 class="font-bold text-lg">Receipt</h3>
+                      <Badge :variant="getStatusVariant(receipt.status)">
+                        {{ getStatusText(receipt.status) }}
+                      </Badge>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                      {{ new Date(receipt.createdAt).toLocaleString() }}
+                    </p>
+                  </div>
+                </div>
+                <div v-if="receipt.finalResult" class="text-right">
+                  <p class="text-2xl font-bold">${{ receipt.finalResult.total.toFixed(2) }}</p>
+                  <p class="text-xs text-muted-foreground">{{ receipt.finalResult.items.length }} items</p>
+                </div>
+                <div v-else class="text-right">
+                  <p class="text-sm text-muted-foreground">
+                    {{ receipt.status === 'ocr_processing' ? 'Processing...' : 'Pending' }}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
