@@ -158,3 +158,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 >>>>>>> 74c5b1138e519f0749c5c4d67417096245a12ec2
+
+# Sentry Config File
+.env.sentry-build-plugin
