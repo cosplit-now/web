@@ -10,6 +10,7 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/vue": "^10.36.0",
     "better-auth": "^1.4.14",
     "reka-ui": "^2.7.0",
     "tailwindcss-animate": "^1.0.7",
