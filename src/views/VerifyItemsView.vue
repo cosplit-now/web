@@ -39,18 +39,23 @@ onMounted(() => {
 
 // Computed values
 const items = computed(() => currentSplit.value?.items || [])
-const subtotal = computed(() =>
+
+// Use stored values from receipt (backend total and calculated tax)
+const totalFromReceipt = computed(() => currentSplit.value?.total || 0)
+const taxFromReceipt = computed(() => currentSplit.value?.totalTaxFromReceipt || 0)
+
+// Calculate current values from items (for comparison when items are edited)
+const calculatedSubtotal = computed(() =>
   items.value.reduce((sum, item) => sum + (getItemActualPrice(item) * (item.quantity || 1)), 0)
 )
-const totalTax = computed(() =>
+const calculatedTax = computed(() =>
   items.value.reduce((sum, item) => sum + (item.taxAmount || 0), 0)
 )
-const grandTotal = computed(() => subtotal.value + totalTax.value)
+const calculatedTotal = computed(() => calculatedSubtotal.value + calculatedTax.value)
 
+// Check if calculated total matches receipt total
 const totalMatch = computed(() => {
-  if (!currentSplit.value) return false
-  const receiptTotal = subtotal.value + (currentSplit.value.totalTaxFromReceipt || 0)
-  return Math.abs(grandTotal.value - receiptTotal) < 0.01
+  return Math.abs(calculatedTotal.value - totalFromReceipt.value) < 0.01
 })
 
 
@@ -361,27 +366,30 @@ const continueToDefineMembers = () => {
               <div class="space-y-3">
                 <div class="flex justify-between items-center">
                   <span class="text-muted-foreground">Subtotal</span>
-                  <span class="text-xl font-bold">${{ subtotal.toFixed(2) }}</span>
+                  <span class="text-xl font-bold">${{ calculatedSubtotal.toFixed(2) }}</span>
                 </div>
                 <div class="flex justify-between items-center">
                   <div class="flex items-center gap-2">
                     <span class="text-muted-foreground">Tax</span>
-                    <Badge v-if="currentSplit" variant="outline" class="text-xs">From receipt: ${{ currentSplit.totalTaxFromReceipt.toFixed(2) }}</Badge>
+                    <Badge v-if="currentSplit" variant="outline" class="text-xs">From receipt: ${{ taxFromReceipt.toFixed(2) }}</Badge>
                   </div>
-                  <span class="text-xl font-bold">${{ totalTax.toFixed(2) }}</span>
+                  <span class="text-xl font-bold">${{ calculatedTax.toFixed(2) }}</span>
                 </div>
                 <div class="h-px bg-border my-2"></div>
                 <div class="flex justify-between items-center">
-                  <span class="font-bold">Total</span>
                   <div class="flex items-center gap-2">
-                    <span class="text-2xl font-bold text-primary">${{ grandTotal.toFixed(2) }}</span>
+                    <span class="font-bold">Total</span>
+                    <Badge v-if="currentSplit" variant="outline" class="text-xs">Receipt: ${{ totalFromReceipt.toFixed(2) }}</Badge>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-2xl font-bold text-primary">${{ calculatedTotal.toFixed(2) }}</span>
                     <CheckCircle2 v-if="totalMatch" class="w-5 h-5 text-primary" />
                     <AlertTriangle v-else class="w-5 h-5 text-accent-foreground" />
                   </div>
                 </div>
                 <div v-if="!totalMatch && currentSplit" class="p-3 rounded-lg bg-accent/20 border border-accent/40">
                   <p class="text-sm text-accent-foreground">
-                    ⚠️ Total doesn't match. Difference: ${{ Math.abs(grandTotal - (subtotal + currentSplit.totalTaxFromReceipt)).toFixed(2) }}
+                    ⚠️ Total doesn't match receipt. Difference: ${{ Math.abs(calculatedTotal - totalFromReceipt).toFixed(2) }}
                   </p>
                 </div>
               </div>

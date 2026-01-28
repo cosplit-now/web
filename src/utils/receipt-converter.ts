@@ -12,9 +12,13 @@ import type { ReceiptItemResponse } from '@/types/receipt'
  */
 export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse, taxRate?: number): Item {
   const hasTax = receiptItem.hasTax === true
-  
+
+  // Normalize discount to positive number (API may return negative values like -4)
+  const discount = Math.abs(receiptItem.discount || 0)
+  const deposit = receiptItem.deposit || 0
+
   // Calculate actual price after discount and deposit
-  const actualPrice = receiptItem.price - (receiptItem.discount || 0) + (receiptItem.deposit || 0)
+  const actualPrice = receiptItem.price - discount + deposit
   
   // Use provided tax rate or estimate at 13%
   const effectiveTaxRate = taxRate !== undefined ? taxRate : 0.13
@@ -27,8 +31,8 @@ export function convertReceiptItemToItem(receiptItem: ReceiptItemResponse, taxRa
     quantity: receiptItem.quantity || 1,
     hasTax: hasTax,
     taxAmount: taxAmount,
-    discount: receiptItem.discount,
-    deposit: receiptItem.deposit,
+    discount: discount,  // Store as positive number
+    deposit: deposit,
     splitMode: 'equal',
     assignments: [],
   }
@@ -45,16 +49,19 @@ export function convertReceiptItems(receiptItems: ReceiptItemResponse[], backend
   // If backend provides total, calculate actual tax rate
   if (backendTotal !== undefined) {
     // Calculate subtotal (with discounts and deposits)
+    // Note: discount from API may be negative, so use Math.abs()
     const subtotal = receiptItems.reduce((sum, item) => {
-      const actualPrice = item.price - (item.discount || 0) + (item.deposit || 0)
+      const discount = Math.abs(item.discount || 0)
+      const actualPrice = item.price - discount + (item.deposit || 0)
       return sum + actualPrice * (item.quantity || 1)
     }, 0)
-    
+
     // Calculate taxable amount (with discounts and deposits)
     const taxableAmount = receiptItems
       .filter(item => item.hasTax === true)
       .reduce((sum, item) => {
-        const actualPrice = item.price - (item.discount || 0) + (item.deposit || 0)
+        const discount = Math.abs(item.discount || 0)
+        const actualPrice = item.price - discount + (item.deposit || 0)
         return sum + actualPrice * (item.quantity || 1)
       }, 0)
     
@@ -91,7 +98,8 @@ export function calculateReceiptTotal(
   items.forEach(item => {
     const quantity = item.quantity || 1
     subtotal += item.price * quantity
-    totalDiscount += (item.discount || 0)
+    // Note: discount from API may be negative, so use Math.abs()
+    totalDiscount += Math.abs(item.discount || 0)
     totalDeposit += (item.deposit || 0)
   })
 
@@ -112,7 +120,8 @@ export function calculateReceiptTotal(
     const taxableAmount = items
       .filter(item => item.hasTax === true)
       .reduce((sum, item) => {
-        const actualPrice = item.price - (item.discount || 0) + (item.deposit || 0)
+        const discount = Math.abs(item.discount || 0)
+        const actualPrice = item.price - discount + (item.deposit || 0)
         return sum + actualPrice * (item.quantity || 1)
       }, 0)
     
