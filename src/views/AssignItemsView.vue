@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Users, CheckCircle2, Percent, Hash, DollarSign, RotateCcw } from 'lucide-vue-next'
+import { ArrowLeft, Users, CheckCircle2, Percent, Hash, RotateCcw } from 'lucide-vue-next'
 import { type Item, type SplitMode, type ItemAssignment, calculateMemberShare, getItemActualPrice } from '@/types/item'
 import { useSplitData } from '@/composables/useSplitData'
 import { useMembers } from '@/composables/useMembers'
@@ -182,14 +182,37 @@ const updateAssignmentValue = (memberId: string, value: number) => {
   if (!selectedItem.value || !selectedItem.value.assignments) return
 
   const item = { ...selectedItem.value }
-  const assignment = item.assignments.find(a => a.memberId === memberId)
-  if (!assignment) return
+  const assignmentIndex = item.assignments.findIndex(a => a.memberId === memberId)
+  if (assignmentIndex === -1) return
 
   if (item.splitMode === 'ratio') {
-    assignment.ratio = Math.max(0, Math.min(100, value))
+    const newValue = Math.max(0, Math.min(100, value))
+    const oldValue = item.assignments[assignmentIndex].ratio || 0
+    const diff = newValue - oldValue
+
+    // Update the current member's ratio
+    item.assignments[assignmentIndex].ratio = newValue
+
+    // Distribute the difference among other members proportionally
+    const otherAssignments = item.assignments.filter((_, idx) => idx !== assignmentIndex)
+    const otherTotal = otherAssignments.reduce((sum, a) => sum + (a.ratio || 0), 0)
+
+    if (otherTotal > 0 && otherAssignments.length > 0) {
+      otherAssignments.forEach(a => {
+        const proportion = (a.ratio || 0) / otherTotal
+        a.ratio = Math.max(0, Math.round((a.ratio || 0) - diff * proportion))
+      })
+
+      // Ensure total is exactly 100%
+      const currentTotal = item.assignments.reduce((sum, a) => sum + (a.ratio || 0), 0)
+      if (currentTotal !== 100 && otherAssignments.length > 0) {
+        // Adjust the first other member to make it exactly 100
+        const firstOther = otherAssignments[0]
+        firstOther.ratio = (firstOther.ratio || 0) + (100 - currentTotal)
+      }
+    }
   } else if (item.splitMode === 'quantity') {
-    // Allow any quantity, calculate share by ratio of quantities
-    assignment.quantity = Math.max(1, Math.floor(value))
+    item.assignments[assignmentIndex].quantity = Math.max(1, Math.floor(value))
   }
   updateItem(item)
 }
@@ -228,18 +251,6 @@ const resetAllAssignments = () => {
     updateItem(updatedItem)
   })
   selectedItemId.value = null
-}
-
-const toggleTax = () => {
-  if (!selectedItem.value) return
-  const updatedItem = { ...selectedItem.value }
-  updatedItem.hasTax = !updatedItem.hasTax
-  if (!updatedItem.hasTax) {
-    updatedItem.taxAmount = undefined
-  } else {
-    updatedItem.taxAmount = updatedItem.price * 0.07 // Auto-calculate 7% tax
-  }
-  updateItem(updatedItem)
 }
 
 const goBack = () => {
@@ -416,65 +427,58 @@ const handleKeyDown = (event: KeyboardEvent) => {
               ]"
             >
               <CardContent class="p-5">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-4 flex-1">
+                <div class="flex items-start justify-between gap-4">
+                  <!-- Left: Item Info -->
+                  <div class="flex items-start gap-4 flex-1 min-w-0">
                     <div
                       :class="[
-                        'w-12 h-12 rounded-xl flex items-center justify-center transition-all',
+                        'w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0',
                         getItemState(item) === 'selected' ? 'bg-primary' : 'bg-primary/10'
                       ]"
                     >
                       <component
                         :is="getSplitModeIcon(item.splitMode)"
                         :class="[
-                          'w-6 h-6 transition-colors',
+                          'w-5 h-5 transition-colors',
                           getItemState(item) === 'selected' ? 'text-primary-foreground' : 'text-primary'
                         ]"
                       />
                     </div>
-                    <div class="flex-1">
-                      <div class="flex items-center gap-2 mb-1">
-                        <h3 class="font-bold text-lg">{{ item.name }}</h3>
+                    <div class="flex-1 min-w-0 space-y-2">
+                      <!-- Item Name & Quantity -->
+                      <div class="flex items-center gap-2">
+                        <h3 class="font-bold text-lg truncate">{{ item.name }}</h3>
+                        <span v-if="(item.quantity || 1) > 1" class="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded shrink-0">
+                          × {{ item.quantity }}
+                        </span>
                       </div>
+
+                      <!-- Price Row -->
+                      <div class="flex items-baseline gap-3">
+                        <span class="text-xl font-bold text-primary">${{ getItemActualPrice(item).toFixed(2) }}</span>
+                        <span v-if="item.discount" class="text-sm text-muted-foreground line-through">
+                          ${{ item.price.toFixed(2) }}
+                        </span>
+                        <span v-if="item.discount" class="text-sm font-medium text-green-600 dark:text-green-400">
+                          -${{ item.discount.toFixed(2) }}
+                        </span>
+                      </div>
+
+                      <!-- Tags Row -->
                       <div class="flex items-center gap-2 flex-wrap">
-                        <div class="flex items-center gap-2">
-                          <p 
-                            v-if="item.discount" 
-                            class="text-sm text-muted-foreground line-through"
-                          >
-                            ${{ item.price.toFixed(2) }}
-                          </p>
-                          <p class="text-xl font-bold text-primary">${{ getItemActualPrice(item).toFixed(2) }}</p>
-                        </div>
-                        <Badge
-                          v-if="item.discount"
-                          variant="destructive"
-                          class="text-xs"
-                        >
-                          Save ${{ item.discount.toFixed(2) }}
-                        </Badge>
                         <Badge
                           v-if="item.deposit"
-                          variant="secondary"
+                          variant="outline"
                           class="text-xs"
                         >
                           Deposit +${{ item.deposit.toFixed(2) }}
                         </Badge>
                         <Badge
-                          v-if="item.hasTax && item.taxAmount"
-                          variant="secondary"
+                          v-if="item.hasTax"
+                          variant="outline"
                           class="text-xs"
                         >
-                          <DollarSign class="w-3 h-3 mr-1" />
-                          Tax +${{ item.taxAmount.toFixed(2) }}
-                        </Badge>
-                        <Badge
-                          v-if="item.quantity && item.quantity > 1"
-                          variant="outline"
-                          class="text-xs border-primary/40"
-                        >
-                          <Hash class="w-3 h-3 mr-1" />
-                          {{ item.quantity }} {{ item.quantity === 1 ? 'item' : 'items' }}
+                          +Tax ${{ item.taxAmount?.toFixed(2) }}
                         </Badge>
                         <Badge variant="secondary" class="text-xs">
                           <component :is="getSplitModeIcon(item.splitMode)" class="w-3 h-3 mr-1" />
@@ -484,12 +488,12 @@ const handleKeyDown = (event: KeyboardEvent) => {
                     </div>
                   </div>
 
-                  <!-- Member Badges -->
-                  <div class="flex items-center gap-2">
-                    <div v-if="!item.assignments || item.assignments.length === 0" class="flex items-center gap-2 text-sm text-muted-foreground">
+                  <!-- Right: Member Badges -->
+                  <div class="flex flex-col items-end gap-2 shrink-0">
+                    <div v-if="!item.assignments || item.assignments.length === 0" class="text-sm text-muted-foreground">
                       <span>Click to assign</span>
                     </div>
-                    <div v-else class="flex gap-1 flex-wrap justify-end max-w-xs">
+                    <div v-else class="flex gap-1 flex-wrap justify-end max-w-[200px]">
                       <Badge
                         v-for="assignment in item.assignments"
                         :key="assignment.memberId"
@@ -497,14 +501,14 @@ const handleKeyDown = (event: KeyboardEvent) => {
                           backgroundColor: members.find(m => m.id === assignment.memberId)?.color,
                           color: 'white'
                         }"
-                        class="font-medium"
+                        class="font-medium text-xs"
                       >
                         {{ members.find(m => m.id === assignment.memberId)?.name }}
-                        <span v-if="item.splitMode === 'ratio' && assignment.ratio">
-                          ({{ assignment.ratio }}%)
+                        <span v-if="item.splitMode === 'ratio' && assignment.ratio !== undefined">
+                          {{ assignment.ratio }}%
                         </span>
                         <span v-if="item.splitMode === 'quantity' && assignment.quantity">
-                          ({{ assignment.quantity }}x)
+                          ×{{ assignment.quantity }}
                         </span>
                       </Badge>
                     </div>
@@ -574,22 +578,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
                         Qty
                       </Button>
                     </div>
-                  </div>
-
-                  <!-- Tax Toggle -->
-                  <div class="flex items-center justify-between p-3 rounded-lg bg-accent/10">
-                    <div class="flex items-center gap-2">
-                      <DollarSign class="w-4 h-4 text-destructive" />
-                      <span class="text-sm font-medium">Includes Tax</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      @click.stop="toggleTax"
-                      :class="selectedItem?.hasTax && 'bg-destructive/10 border-destructive/50'"
-                    >
-                      {{ selectedItem?.hasTax ? 'Yes' : 'No' }}
-                    </Button>
                   </div>
 
                   <!-- Member List -->

@@ -16,8 +16,6 @@ import {
   Edit,
   Trash2,
   Plus,
-  DollarSign,
-  Hash,
   CheckCircle2
 } from 'lucide-vue-next'
 
@@ -194,45 +192,48 @@ const continueToDefineMembers = () => {
                   <!-- Item Header -->
                   <div class="flex items-start justify-between">
                     <div class="flex-1">
-                      <div v-if="!item.isEditing" class="space-y-2">
-                        <div class="flex items-center gap-2">
+                      <div v-if="!item.isEditing" class="space-y-3">
+                        <!-- Item Name & Quantity -->
+                        <div class="flex items-center justify-between">
                           <h3 class="font-bold text-lg">{{ item.name }}</h3>
+                          <span v-if="(item.quantity || 1) > 1" class="text-sm text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            × {{ item.quantity }}
+                          </span>
                         </div>
-                        <div class="flex items-center gap-3 flex-wrap">
-                          <div class="flex items-center gap-2">
-                            <DollarSign class="w-4 h-4 text-muted-foreground" />
-                            <span 
-                              v-if="item.discount" 
-                              class="text-sm text-muted-foreground line-through"
-                            >
-                              ${{ item.price.toFixed(2) }}
-                            </span>
-                            <span class="text-xl font-bold text-primary">${{ getItemActualPrice(item).toFixed(2) }}</span>
-                          </div>
-                          <Badge
-                            v-if="item.discount"
-                            variant="destructive"
-                            class="text-xs"
-                          >
-                            Save ${{ item.discount.toFixed(2) }}
-                          </Badge>
+
+                        <!-- Price Row -->
+                        <div class="flex items-baseline gap-3">
+                          <span class="text-2xl font-bold text-primary">${{ getItemActualPrice(item).toFixed(2) }}</span>
+                          <span v-if="item.discount" class="text-sm text-muted-foreground line-through">
+                            ${{ item.price.toFixed(2) }}
+                          </span>
+                          <span v-if="item.discount" class="text-sm font-medium text-green-600 dark:text-green-400">
+                            -${{ item.discount.toFixed(2) }}
+                          </span>
+                        </div>
+
+                        <!-- Tags Row -->
+                        <div class="flex items-center gap-2 flex-wrap">
                           <Badge
                             v-if="item.deposit"
-                            variant="secondary"
+                            variant="outline"
                             class="text-xs"
                           >
                             Deposit +${{ item.deposit.toFixed(2) }}
                           </Badge>
-                          <div class="flex items-center gap-1">
-                            <Hash class="w-4 h-4 text-muted-foreground" />
-                            <span class="text-sm">Qty: {{ item.quantity }}</span>
-                          </div>
                           <Badge
                             v-if="item.hasTax"
+                            variant="outline"
+                            class="text-xs"
+                          >
+                            +Tax ${{ item.taxAmount?.toFixed(2) }}
+                          </Badge>
+                          <Badge
+                            v-if="!item.hasTax"
                             variant="secondary"
                             class="text-xs"
                           >
-                            Tax: ${{ item.taxAmount?.toFixed(2) }}
+                            No Tax
                           </Badge>
                         </div>
                       </div>
